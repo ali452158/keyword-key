@@ -8,6 +8,7 @@ import { Trends } from "@/components/sections/trends"
 import { CompetitorAnalysis } from "@/components/sections/competitor-analysis"
 import { ContentGenerator } from "@/components/sections/content-generator"
 import { SocialIntegration } from "@/components/sections/social-integration"
+import { GrowthTools } from "@/components/sections/growth-tools"
 import { KeyRound, Github, Twitter, Linkedin, Heart } from "lucide-react"
 
 type TabId =
@@ -17,6 +18,7 @@ type TabId =
   | "competitor"
   | "generator"
   | "integration"
+  | "growth"
 
 export default function Home() {
   const [activeTab, setActiveTab] = React.useState<TabId>("dashboard")
@@ -74,6 +76,7 @@ export default function Home() {
           {activeTab === "integration" && (
             <SocialIntegration onNavigate={handleNavigate} />
           )}
+          {activeTab === "growth" && <GrowthTools />}
         </div>
       </main>
 

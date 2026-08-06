@@ -382,3 +382,305 @@ Stage Summary:
 - Site now has 6 tabs: لوحة التحكم، بحث الكلمات، الترندات، تحليل المنافسين، مولّد الأفكار، ربط الحسابات
 - 3 AI-powered features total (competitor analysis, content generator, account integration analysis)
 - Lint clean, dev server stable, fully responsive, RTL Arabic
+
+---
+Task ID: 17
+Agent: full-stack-developer
+Task: Build hashtag generator tool
+
+Work Log:
+- Read worklog.md to inherit established design system (blue+purple brand gradient, RTL Arabic, shadcn/ui, PlatformBadge, useToast, brand gradient utilities)
+- Inspected shared modules: platform-icon.tsx (PlatformBadge API), platforms.ts (PLATFORMS map), types.ts (Platform type), use-toast.ts, /api/content/generate/route.ts (z-ai-web-dev-sdk pattern reference), ui/{card,button,input,badge,skeleton,separator}.tsx
+- Verified brand gradient utilities exist in globals.css (bg-gradient-brand, bg-gradient-brand-soft, text-gradient-brand, shadow-brand, shadow-brand-lg, scroll-area-brand)
+- Created directories: src/app/api/tools/hashtags/ and src/components/growth-tools/
+- Built API route /home/z/my-project/src/app/api/tools/hashtags/route.ts:
+  * `export const dynamic = "force-dynamic"` + `export const maxDuration = 60`
+  * POST body `{ keyword, platform, count? }` validated (non-empty keyword, platform in [tiktok|youtube|instagram|facebook], count default 20 clamped to [5,30])
+  * System prompt exactly as specified instructing JSON-only response { hashtags, mix, reach, tips }
+  * User prompt adds per-platform strategy (TikTok viral/trend, YouTube SEO long-tail, Instagram niche/community, Facebook topical/local) and instructs 30% high-volume + 50% medium-niche + 20% branded/specific mix
+  * Uses `import ZAI from "z-ai-web-dev-sdk"` then `ZAI.create()` + `zai.chat.completions.create({ messages, thinking: { type: "disabled" } })`
+  * Robust parser: regex-extracts JSON, normalizes hashtags (prefix # if missing), filters empty, builds mix string from hashtags if LLM omitted it, falls back to `generateFallbackHashtags` if parse fails or hashtags empty
+  * `generateFallbackHashtags` returns platform-specific signature tags (#fyp/#foryou/#viral for tiktok, #shorts/#tutorial for youtube, #instagood/#reels for instagram, #facebook/#community for facebook) plus keyword-derived and generic niche tags, deduped
+  * `defaultTips(platform)` returns 4 platform-specific Arabic best-practice tips
+  * Returns `{ success, data: { hashtags, mix, reach, tips }, meta: { keyword, platform, count } }` with proper 400/500 errors
+- Built component /home/z/my-project/src/components/growth-tools/hashtag-generator.tsx:
+  * `"use client"` self-contained component, no props
+  * Tool header: bg-gradient-brand Hash icon box + font-display title "مولّد الهاشتاجات" + subtitle "ولّد مجموعات هاشتاجات محسّنة لكل منصة"
+  * Input card (bg-gradient-brand-soft, border-primary/20, shadow-brand): keyword Input with Hash icon prefix, 4 PlatformBadge platform chips (default tiktok, selected = bg-gradient-brand text-white shadow-brand), segmented count toggle (10/20/30 default 20), full-width gradient-brand generate button with Hash icon (or Loader2 spinner + "جاري التوليد..." while loading)
+  * Validation: empty keyword -> destructive toast
+  * Loading state: gradient-brand-soft banner with Hash icon + 4 rotating Arabic messages (2.8s each) + animate-pulse progress bar + Loader2 spinner; plus 12 shimmer skeleton tags (variable widths) and 2 skeleton cards
+  * Results: copy bar (bg-gradient-brand-soft) showing count + "نسخ الكل" button that copies `mix` to clipboard with toast "تم نسخ الهاشتاجات" and check-icon feedback; reach badge (TrendingUp icon + reach string in text-gradient-brand) + platform badge; hashtag grid as clickable chips (bg-secondary hover:bg-accent, dir=ltr, copy icon, copy-single with toast "تم النسخ" + brief emerald feedback); tips card (gradient icon box + numbered list of tips)
+  * Empty state: dashed card with gradient blur + Hash icon + "أدخل كلمة أو موضوع لتوليد هاشتاجات محسّنة" + 3 outline badges
+  * Error state: destructive-tinted card with AlertCircle + retry button
+  * Accessibility: labeled input (htmlFor), role=radiogroup/radio with aria-checked on platform + count selectors, aria-label on copy buttons, focus-visible rings throughout
+  * Responsive: platform chips flex-wrap, hashtag grid flex-wrap, count toggle inline-flex
+- Ran `bun run lint`: 0 errors, 0 warnings on both new files
+- Verified dev server compiled successfully (✓ Compiled in 180ms)
+
+Stage Summary:
+- Delivered `/home/z/my-project/src/app/api/tools/hashtags/route.ts` (force-dynamic, maxDuration 60, LLM-powered with robust fallback)
+- Delivered `/home/z/my-project/src/components/growth-tools/hashtag-generator.tsx` — component exported as named function `HashtagGenerator` (no props)
+- API contract: POST /api/tools/hashtags { keyword: string, platform: Platform, count?: number } -> { success, data: { hashtags: string[], mix: string, reach: string, tips: string[] }, meta }
+- 4 component states handled: empty, loading (animated + shimmer skeletons), results (copy bar + reach badge + hashtag grid + tips), error (retry)
+- Copy-all (mix string) and copy-single (per-tag) both work with clipboard + toast confirmation + brief visual feedback
+- Platform-specific hashtag strategy in prompt (TikTok viral / YouTube SEO long-tail / Instagram niche+community / Facebook topical)
+- Matches established design system: bg-gradient-brand, bg-gradient-brand-soft, text-gradient-brand, shadow-brand, PlatformBadge, useToast, shadcn Card/Button/Input/Badge/Skeleton/Separator
+- Fully RTL Arabic, mobile-first responsive, accessible, lint clean, dev server stable
+
+---
+Task ID: 20
+Agent: full-stack-developer
+Task: Build title optimizer tool
+
+Work Log:
+- Read worklog.md to inherit design system (blue+purple brand gradient, RTL Arabic, shadcn/ui, PlatformBadge, useToast, scroll-area-brand)
+- Read src/components/platform-icon.tsx (PlatformBadge API: size sm/md/lg, showName), src/lib/platforms.ts, src/lib/types.ts (Platform union), src/hooks/use-toast.ts, src/components/ui/{progress,textarea,input,card,button,badge}.tsx, src/app/api/content/generate/route.ts (z-ai-web-dev-sdk pattern), src/app/globals.css (brand utilities)
+- Created directories: src/app/api/tools/title-analyzer/ and src/components/growth-tools/
+- Created `/home/z/my-project/src/app/api/tools/title-analyzer/route.ts`:
+  * `export const dynamic = "force-dynamic"` + `export const maxDuration = 60`
+  * `import ZAI from "z-ai-web-dev-sdk"` — used at backend only
+  * POST body `{ title: string, platform: Platform, keyword?: string }`
+  * Validates title non-empty + platform in [tiktok|youtube|instagram|facebook]
+  * System prompt matches spec exactly (Arabic, JSON-only schema with score/grades/suggestions/improvedTitles)
+  * User prompt supplies title, platform (with optimal length range), keyword, required criteria names (الطول/الكلمات القوية/الفضول/الوضوح/الكلمة المفتاحية/التطابق مع المنصة)
+  * Uses `zai.chat.completions.create({ messages, thinking: { type: "disabled" } })`
+  * Robust JSON extraction: regex match `\{[\s\S]*\}`, JSON.parse, then validates each field (score 0-100, grades array with criteria/score/note, suggestions/improvedTitles string arrays). Truncates & falls back when too few entries returned.
+  * `fallbackAnalysis()` heuristic fallback for JSON parse / LLM failures: scores 6 criteria from length vs platform optimum, Arabic/English power-word list, curiosity cues (؟/?/.../!), emoji/caps penalty for clarity, keyword inclusion, platform fit. Generates 5 deterministic improved title variants + 5 actionable suggestions.
+  * Returns `{ success: true, data: TitleAnalysis, meta: {title, platform, keyword, length} }`
+- Created `/home/z/my-project/src/components/growth-tools/title-optimizer.tsx` as "use client" component (no props, self-contained):
+  * Section header: PenLine icon (gradient-brand square) + "محلل ومحسّن العناوين" + subtitle "قِيم عنوان الفيديو واحصل على نسخ محسّنة بالذكاء الاصطناعي"
+  * Input card (bg-gradient-brand-soft, border-primary/20): Title Input with Type icon + live char count badge (emerald when in ideal range, neutral otherwise) + dynamic optimal-length hint per platform; Platform selector: 4 chips using PlatformBadge (default youtube, selected = bg-gradient-brand + shadow-brand + white text); Optional keyword Input with Sparkles icon; "حلّل العنوان" submit button (bg-gradient-brand + Gauge icon + Loader2 spinner "جاري التحليل..." while loading)
+  * LoadingState: gradient-brand-soft card with Type icon in gradient square + pulse-glow halo + "الذكاء الاصطناعي يحلل العنوان..." + animated shimmer strip + 4 skeleton criterion rows (md:grid-cols-2)
+  * AnalysisResult:
+    - ScoreGauge (centerpiece): SVG circle (radius 80, strokeWidth 14, strokeLinecap round) with linearGradient stroke (color/opacity 0.7 -> 1), background circle in text-secondary, -rotate-90 wrapper, animated strokeDashoffset (transition-all duration-1000). Center: 4xl bold score number colored by score, "/ 100" muted, label pill "ممتاز"/"جيد جداً"/"جيد"/"مقبول"/"يحتاج تحسين" with tinted bg. Mobile: stacks vertically; desktop: gauge + 3-tier color legend side-by-side.
+    - Color logic: emerald (#10b981) >=70, amber (#f59e0b) >=40, rose (#ef4444) <40
+    - Criteria breakdown card: TrendingUp header + Separator + md:grid-cols-2 of CriterionRow components. Each row: criteria name + score badge (tinted), Progress bar with `[&>div]:bg-{emerald|amber|rose}-500` color override, note paragraph.
+    - Two-column layout (lg:grid-cols-2): Suggestions card (Lightbulb amber icon, scrollable ul with Sparkles bullet markers, max-h-72 scroll-area-brand) | Improved titles card (Wand2 icon, "عناوين محسّنة مقترحة", max-h-96 scroll-area-brand) — each ImprovedTitleCard: bg-card border-2 border-primary/20 hover:border-primary/40 hover:shadow-brand, gradient number badge, bold title text, "نسخ" outline button (Copy icon -> Check + "تم النسخ" emerald feedback 1.8s) + "استبدال" gradient-brand button (Replace icon) which calls handleUse -> fills title input, clears analysis, scrolls to top, toast "تم استبدال العنوان"
+  * EmptyState: dashed border + bg-gradient-brand-soft/40 + Type icon in gradient square with blur halo + "أدخل عنوان الفيديو لتحليله وتحسينه" (or "اضغط على «حلّل العنوان»" when title present) + helper subtitle
+  * Error state: rose-tinted card with AlertCircle + retry button
+  * Footer hint: "مدعوم بالذكاء الاصطناعي" outline badge
+  * Toast on success (with score + label), on copy, on use-replace, on validation error, on fetch failure
+  * Accessibility: label htmlFor + aria-describedby on inputs, aria-pressed on platform chips, aria-live on char count, focus-visible rings, disabled state during loading
+  * Responsive: platform chips grid-cols-2 sm:grid-cols-4, criteria grid-cols-1 md:grid-cols-2, gauge centers on mobile (flex-col) and aligns left on md+, suggestions/improved titles stack on mobile, lg:grid-cols-2 on desktop
+- Ran `bun run lint` -> 0 errors, 0 warnings on both new files (1 pre-existing warning in another agent's earnings-calculator.tsx, not in scope)
+- Verified dev.log: dev server compiles successfully ("✓ Compiled in 180ms"), no errors related to new files
+
+Stage Summary:
+- Delivered `/home/z/my-project/src/app/api/tools/title-analyzer/route.ts` (force-dynamic, maxDuration 60, LLM-powered with full heuristic fallback for 6 criteria)
+- Delivered `/home/z/my-project/src/components/growth-tools/title-optimizer.tsx` — self-contained "use client" component, exported as named `TitleOptimizer` AND as default `TitleOptimizer`
+- POST /api/tools/title-analyzer body {title, platform, keyword?} -> {success, data: {score, grades:[{criteria,score,note}], suggestions:[], improvedTitles:[]}, meta}
+- ScoreGauge: SVG circle with gradient stroke + animated dashoffset + center score/label pill (red/amber/green)
+- All 4 states handled: empty (with hasTitle variant), loading (shimmer + skeleton), results (gauge + criteria + suggestions + improved titles), error (retry)
+- Copy-to-clipboard with visual feedback (Check icon, emerald "تم النسخ") + toast
+- "استبدال" (Use this) button fills title input, clears analysis, scrolls to top, toast confirmation
+- Live character count with color-coded status (short/ideal/long) based on per-platform optimum (tiktok 20-60, youtube 40-70, instagram 25-65, facebook 30-80)
+- Matches established design system: bg-gradient-brand, bg-gradient-brand-soft, text-gradient-brand (in gauge gradient stop), shadow-brand, scroll-area-brand, PlatformBadge, useToast, shadcn Card/Button/Input/Badge/Skeleton/Progress/Separator
+- Arabic RTL throughout, mobile-first responsive, accessible, lint clean, dev server compiles
+
+---
+Task ID: 21
+Agent: full-stack-developer
+Task: Build monetization calculator tool
+
+Work Log:
+- Read worklog.md, src/components/platform-icon.tsx, src/lib/platforms.ts, src/lib/types.ts, src/lib/format.ts, src/hooks/use-toast.ts, src/components/ui/{select,progress,card,input,button,skeleton}.tsx, and /api/trending/route.ts to align with established design system (blue+purple gradient brand, RTL Arabic, shadcn/ui, PlatformBadge, formatNumber)
+- Created directory `src/app/api/tools/earnings/`
+- Created `/home/z/my-project/src/app/api/tools/earnings/route.ts` — POST handler, `export const dynamic = "force-dynamic"`, pure computation (NO LLM)
+  * RPM table per platform × niche (low/mid/high): YouTube $2-15, TikTok $0.5-3, Instagram $1-5, Facebook $0.5-3 — finance/tech highest, entertainment lowest
+  * Revenue breakdown splits per platform (YouTube: 50/30/10/10 AdSense/Sponsorships/Memberships/Affiliate; TikTok: 10/60/15/15 Creator Fund/Sponsorships/Live/Affiliate; Instagram: 75/15/5/5; Facebook: 60/25/10/5)
+  * Computes monthlyEstimate = RPM × (views/1000), yearlyEstimate = monthly × 12, breakdown amounts sorted desc, rpm = mid RPM
+  * Tips = 2 platform tips + 2 niche tips = 4 Arabic tips total (matrix of 4×8)
+  * Validation: platform ∈ {youtube,tiktok,instagram,facebook}, niche ∈ {entertainment,tech,gaming,beauty,education,food,finance,lifestyle}, followers > 0, viewsPerMonth > 0 — returns 400 with Arabic error message on failure
+- Created directory `src/components/growth-tools/`
+- Created `/home/z/my-project/src/components/growth-tools/earnings-calculator.tsx` — "use client" component, no props
+  * Tool header: gradient-brand icon box (DollarSign) + "حاسبة الأرباح" + subtitle
+  * Input card with bg-gradient-brand-soft: 4-platform chips using PlatformBadge (selected = bg-gradient-brand + shadow-brand + white text), followers Input (number, Users icon, live formatted preview "1,000,000 متابع"), views Input (Eye icon, live preview), niche Select with 8 lucide-icon options (Film/Cpu/Gamepad2/Sparkles/GraduationCap/UtensilsCrossed/Banknote/Heart), gradient-brand submit button "احسب الأرباح" with Calculator icon
+  * Auto-recalculate on platform change via useEffect
+  * Live formatted number preview under each numeric input (toLocaleString en-US)
+  * Loading state: brief 350ms skeleton (gradient hero skeleton + 2 sub-cards + breakdown + tips)
+  * Results view (EarningsResultView):
+    - Hero earnings card (lg:col-span-2, bg-gradient-brand, white text, bg-grid-pattern overlay): "الأرباح الشهرية المقدّرة" + big "≈ $5,000" mid + range "$2,500 — $7,500" + niche + RPM badges + TrendingUp icon
+    - Yearly card: smaller, text-gradient-brand mid + range + monthly×12 breakdown row
+    - RPM/views/followers outline badges row
+    - Revenue breakdown card: each source = name + $amount + Progress bar with `[&>div]:bg-gradient-brand` + % label, sorted desc
+    - Tips card (bg-gradient-brand-soft): Lightbulb icon + 4 numbered tips with gradient brand number badges
+  * Empty state: dashed card with Calculator icon in gradient-brand-soft box + "أدخل بياناتك لحساب الأرباح المحتملة"
+  * Disclaimer: small Info icon + Arabic text at bottom
+  * Error state: rose-tinted card with AlertCircle
+  * Validation: empty/zero followers or views -> toast destructive "إدخال غير صالح"
+  * Responsive: grid-cols-2 sm:grid-cols-4 platform chips, grid-cols-1 sm:grid-cols-2 inputs, grid-cols-1 lg:grid-cols-3 results hero row
+  * Currency formatting: `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}` with "≈" prefix on hero numbers
+- Tested API via curl: valid request returns proper calculation (e.g. YouTube/tech/100K followers/500K views -> mid $5000/mo, $60K/yr, breakdown sums correctly), invalid inputs return 400 with Arabic error
+- Ran `bun run lint` — passed clean with no errors/warnings
+- Verified dev server compiled successfully (POST /api/tools/earnings 200 / 400)
+
+Stage Summary:
+- Delivered two files:
+  * API route: `/home/z/my-project/src/app/api/tools/earnings/route.ts` (POST handler, force-dynamic, pure computation)
+  * Component: `/home/z/my-project/src/components/growth-tools/earnings-calculator.tsx` — exported as named `EarningsCalculator` AND default export
+- Component export name: `EarningsCalculator` (named) / `default` (default export)
+- API contract: POST `/api/tools/earnings` body `{platform, followers, viewsPerMonth, niche}` -> `{success, data: {platform, niche, nicheLabel, followers, viewsPerMonth, rpm, monthlyEstimate:{low,mid,high}, yearlyEstimate:{low,mid,high}, breakdown:[{source,amount}], tips:string[]}}`
+- Matches established design system: bg-gradient-brand, bg-gradient-brand-soft, text-gradient-brand, shadow-brand, shadow-brand-lg, bg-grid-pattern, PlatformBadge, useToast, shadcn Card/Button/Input/Label/Badge/Skeleton/Progress/Separator/Select
+- RTL Arabic throughout, mobile responsive, accessible (Label htmlFor, aria-pressed on chips, keyboard accessible)
+- Lint clean, dev server compiles successfully, API tested with valid + invalid inputs
+
+---
+Task ID: 18
+Agent: full-stack-developer
+Task: Build video script generator tool
+
+Work Log:
+- Read /home/z/my-project/worklog.md to inherit the established design system (blue+purple brand gradient, RTL Arabic, shadcn/ui, PlatformBadge, useToast, section header conventions font-display text-xl font-bold + lucide icon)
+- Inspected shared components & references: src/components/platform-icon.tsx (PlatformBadge API, size sm/md/lg, showName), src/lib/platforms.ts (PLATFORMS map), src/lib/types.ts (Platform type = tiktok|youtube|instagram|facebook), src/hooks/use-toast.ts (toast API), src/app/api/content/generate/route.ts (z-ai-web-dev-sdk LLM pattern: ZAI.create() then zai.chat.completions.create with thinking:{type:"disabled"} + JSON regex extraction + fallback generator)
+- Confirmed shadcn ui components available: Card, Button, Input, Textarea, Badge, Skeleton, Separator
+- Created directory src/app/api/tools/script/ and wrote route.ts:
+  * `export const dynamic = "force-dynamic"` + `export const maxDuration = 60`
+  * POST body `{ topic: string, platform: Platform, duration: "short"|"medium"|"long", tone: "educational"|"entertainment"|"inspirational"|"comedic" }`
+  * Validates all 4 inputs with Arabic error messages (400 on missing/invalid)
+  * DURATION_INFO: short=15-30s/3 scenes, medium=1-3min/4 scenes, long=5-10min/6 scenes
+  * TONE_INFO: educational/entertainment/inspirational/comedic with Arabic descriptions
+  * PLATFORM_INFO: per-platform name, orientation (vertical/horizontal), style (TikTok punchy fast cuts, YouTube structured chapters, etc.)
+  * System prompt (Arabic, exact from spec): "أنت كاتب سكربتات محترف لفيديوهات السوشيال ميديا..."
+  * User prompt injects topic/platform/duration/tone + scene count + platform style requirements
+  * LLM call via `import ZAI from "z-ai-web-dev-sdk"` → `ZAI.create()` → `zai.chat.completions.create({ messages, thinking:{type:"disabled"} })`
+  * Robust JSON parsing: regex extract `\{[\s\S]*\}`, JSON.parse, validate each field (hook/intro/cta/outro strings, scenes array of {title,narration,visual}, tips array of strings, estimatedDuration string)
+  * Falls back to `generateFallbackScript()` if: JSON parse fails OR any critical field (hook/intro/scenes/cta) is empty
+  * Fallback generates tone-aware hooks/intros/outros, 6 reusable scene templates sliced to sceneCount, platform-specific CTAs, platform-specific tips (5 tips each for tiktok/youtube/instagram/facebook), estimatedDuration from DURATION_INFO
+  * Returns `{ success: true, data: ScriptData, meta: { topic, platform, duration, tone } }`
+  * Catches all errors → 500 with `{ success:false, error:"فشل توليد السكربت", message }`
+- Created directory src/components/growth-tools/ and wrote script-generator.tsx as "use client" component, no props (self-contained)
+- Component structure:
+  * Tool header: Clapperboard icon in bg-gradient-brand rounded box + "مولّد سكربتات الفيديو" title (font-display text-xl font-bold sm:text-2xl) + subtitle "سكربت كامل جاهز للتصوير بالذكاء الاصطناعي" + estimatedDuration Badge when script exists
+  * Separator
+  * Input card (bg-gradient-brand-soft border-primary/20 shadow-brand):
+    - Topic Textarea (min-h-20, maxLength 300, char counter, Ctrl/Cmd+Enter to submit) with FileText icon label
+    - Platform selector: 4 chips in grid-cols-2 sm:grid-cols-4 using PlatformBadge (size sm), selected = bg-gradient-brand text-white shadow-brand, default youtube
+    - Duration selector: segmented toggle in bg-secondary container, 3 options (قصير 15-30ث / متوسط 1-3د / طويل 5-10د), selected = bg-gradient-brand text-white shadow-brand
+    - Tone selector: 4 chips in grid-cols-2 sm:grid-cols-4 with icons (GraduationCap/Smile/Sparkles/Laugh), selected = bg-gradient-brand
+    - "ولّد السكربت" Button: bg-gradient-brand shadow-brand h-12 w-full, shows Loader2 spinner + "جاري كتابة السكربت..." during AI call
+  * Loading state: animated loader card (Clapperboard pulse + cycling LOADING_MESSAGES every 3s + progress bar) + skeleton hook card + 4 skeleton scene cards (grid-cols-1 md:grid-cols-2)
+  * Results (ScriptResult):
+    - Copy full script bar (bg-gradient-brand-soft): FileText icon + instruction text + "نسخ السكربت كاملاً" button (bg-gradient-brand) → formatScriptForCopy() builds readable Arabic-formatted text with all sections, copies to clipboard, shows Check icon + toast "تم نسخ السكربت"
+    - Hook card (MOST PROMINENT): bg-gradient-brand text-white shadow-brand-lg p-5 sm:p-7, Zap icon in white/20 backdrop-blur box, "الجملة الافتتاحية (Hook)" label uppercase tracking-wide, hook text in text-xl sm:text-2xl font-bold, supporting line about first 3 seconds
+    - Intro card: BookOpen icon + "المقدمة" + text (hover:shadow-brand transition)
+    - Scenes section: header "المشاهد (N)" with Clapperboard icon (font-display text-xl font-bold), grid-cols-1 lg:grid-cols-2
+    - SceneCard: number badge (bg-gradient-brand text-primary-foreground) + title, then narration block (border-border bg-card border, Mic icon + "التعليق الصوتي" label), then visual block (bg-accent/50, Camera icon + "المشهد البصري" label) — contrasting bg colors as required
+    - CTA card (bg-gradient-brand-soft border-primary/20): Megaphone icon + "دعوة لإجراء" + text (font-medium)
+    - Outro card: Flag icon + "الخاتمة" + text
+    - Estimated duration badge row: Clock badge with estimatedDuration + Clapperboard badge with scene count
+    - Tips card: Lightbulb icon in gradient-soft box + "نصائح للتصوير والمونتاج" + ul of tips each in bg-accent/40 rounded-lg with Lightbulb icon
+  * Empty state: centered Clapperboard icon (gradient-soft + gradient inner box) + "أدخل موضوع الفيديو لتوليد سكربت احترافي" + subtitle
+  * Error state: destructive card with AlertCircle + retry button
+- Validation: topic non-empty, platform selected (default youtube so always set), duration selected (default medium), tone selected (default educational) — toast errors via useToast variant destructive
+- Accessibility: aria-pressed on all chip/toggle buttons, htmlFor label on Textarea, disabled states during loading, focus-visible:ring-2 on all interactive elements
+- Responsive: platform chips 2 cols mobile→4 cols desktop, tone chips 2→4 cols, scenes 1→2 cols (lg), CTA/outro 1→2 cols (md), input card padding p-4 sm:p-6
+- Ran `bun run lint` → 0 errors, 0 warnings on my files (1 pre-existing warning in earnings-calculator.tsx unrelated to this task)
+- Ran `npx eslint` on both new files → clean (exit 0)
+- Verified dev server compiles successfully (no errors in dev.log)
+
+Stage Summary:
+- Delivered `/home/z/my-project/src/app/api/tools/script/route.ts` (force-dynamic, maxDuration 60, LLM-powered via z-ai-web-dev-sdk with full Arabic fallback script generator)
+- Delivered `/home/z/my-project/src/components/growth-tools/script-generator.tsx` — named export `ScriptGenerator` (also has default export), "use client", self-contained (no props)
+- API contract: POST /api/tools/script { topic, platform, duration, tone } → { success, data: { hook, intro, scenes:[{title,narration,visual}], cta, outro, estimatedDuration, tips:[] }, meta }
+- Hook card is visually most prominent (bg-gradient-brand, text-white, shadow-brand-lg, text-xl sm:text-2xl font-bold)
+- Scene narration (bg-card border) vs visual (bg-accent/50) use contrasting bg colors
+- Copy full script formats all sections into readable Arabic text with emojis and section dividers
+- 4 states handled: empty, loading (rotating messages + shimmer skeletons), results, error
+- Matches established design system: bg-gradient-brand, bg-gradient-brand-soft, text-gradient-brand (via white text on gradient), shadow-brand, shadow-brand-lg, PlatformBadge, useToast, shadcn Card/Button/Input/Textarea/Badge/Skeleton/Separator
+- All 18 lucide icons used: FileText, Clapperboard, Zap, BookOpen, Mic, Camera, Megaphone, Flag, Lightbulb, Copy, Check, Loader2, GraduationCap, Smile, Sparkles, Laugh, Clock, AlertCircle
+- Fully RTL Arabic, mobile-first responsive, accessible (aria-pressed, htmlFor, focus-visible rings)
+- Lint clean, dev server stable
+
+---
+Task ID: 19
+Agent: full-stack-developer
+Task: Build best time to post analyzer tool
+
+Work Log:
+- Read /home/z/my-project/worklog.md to inherit established design system (blue+purple brand gradient, RTL Arabic, shadcn/ui, PlatformBadge, COUNTRIES, useToast, scroll-area-brand, section header convention `font-display text-xl font-bold flex items-center gap-2`)
+- Inspected src/components/platform-icon.tsx (PlatformBadge API: size sm/md/lg, showName), src/lib/platforms.ts (PLATFORM_LIST, COUNTRIES), src/lib/types.ts (Platform, Country), src/lib/keyword-data.ts (seededRandom + hashString pattern reference), src/components/sections/trends.tsx (filter+fetch+loading+error pattern reference), src/components/ui/select.tsx, src/components/ui/card.tsx, src/app/api/trending/route.ts (force-dynamic + NextRequest pattern), src/app/globals.css (brand gradient utilities)
+- Created directory `src/app/api/tools/best-time/` and wrote `route.ts`:
+  * `export const dynamic = "force-dynamic"`
+  * GET with query params `?platform=tiktok|youtube|instagram|facebook&country=global|eg|sa|ae|us|kw|qa|ma|dz` (defaults: tiktok, global)
+  * Validates platform and country; returns 400 for invalid inputs
+  * Does NOT use LLM — fully deterministic data generation
+  * Defines Arabic day names array (DAYS_AR) with index 0=السبت ... 6=الجمعة
+  * Defines per-country UTC offset (global=0, eg=+2, sa=+3, ae=+4, kw=+3, qa=+3, ma=+1, dz=+1, us=-5) and human-readable timezone labels in Arabic
+  * Implements `seededRandom(seed)` (Park-Miller LCG) and `hashString(str)` helpers — stable per platform+country combo
+  * Implements `hourDistance(a, b)` (circular distance on 24h clock) and `peakScore(hour, peakHour, width, height)` (Gaussian peak contribution)
+  * `computeBaseScore(platform, hour, day)`:
+    - tiktok: evening peak @21h (height 65, width 2.4), lunch peak @13h (32, 1.6), morning bump @10h (14, 1.8); +10 weekend, +4 Friday; dead hours penalty
+    - youtube: evening peak @19h (60, 2.4), lunch bump @13h (18, 1.5); weekend afternoon peak @15h (38, 2) + +6 bonus; weekdays -4
+    - instagram: lunch peak @12h (48, 1.7), evening peak @20h (52, 1.8), morning bump @8h (18, 1.5); +6 weekend, +3 Friday
+    - facebook: morning peak @10h (44, 1.7), noon peak @13h (30, 1.4), evening peak @19h (42, 1.8); +4 weekdays
+  * For each cell: compute UTC hour = (local_hour - offset) mod 24, score = clamp(0, 100, round(base + ±5 noise))
+  * Returns 168-cell heatmap (7 days × 24 hours) as `{day, hour, score}[]`
+  * Computes top-5 best times sorted by score desc, each with Arabic day name, time range (e.g. "8م - 9م" via formatHourLabel/formatTimeRange), score, and reason (buildReason returns platform+context-aware Arabic explanation)
+  * Computes 4 Arabic insights: best day, daily peak hour, weekend vs weekday comparison (auto picks which is higher), worst hour to avoid
+  * Returns `{success, data: {heatmap, bestTimes, timezone, insights}}`
+- Created directory `src/components/growth-tools/` and wrote `best-time-analyzer.tsx`:
+  * `"use client"` self-contained component, no props
+  * State: platform (default "tiktok"), country (default "global"), data, loading, error
+  * `fetchData` useCallback re-fires on platform/country change; useEffect triggers on fetchData identity change → auto-fetches on mount and on any filter change
+  * On error: setError + destructive toast via useToast
+  * Tool header: CalendarClock icon + "محلل أفضل وقت للنشر" title + subtitle "اكتشف أوقات الذروة لمحتواك حسب المنصة والدولة" with Clock icon
+  * Filter card (bg-gradient-brand-soft border-primary/15 rounded-2xl): platform chips (4 platforms via PlatformBadge sm, selected = bg-gradient-brand text-white shadow-brand), vertical Separator on md+, country Select with all 9 COUNTRIES (flag + Arabic name), sr-only label + aria-label
+  * Loading state: skeleton heatmap grid mimicking real layout (header row + 7 day rows × 24 cells, all Skeleton rounded-sm), wrapped in `min-w-[640px]` + `overflow-x-auto scroll-area-brand`
+  * Error state: destructive card with AlertCircle, Arabic message, retry button
+  * Results: Heatmap card with title + timezone Badge, then 7×24 grid:
+    * Each row: w-12 day label (Arabic, RTL — appears on right) + 24 cells (w-5 h-5 rounded-sm)
+    * Hour labels above grid: every 3 hours shown as Arabic 12h notation (12ص, 3ص, 6ص, 9ص, 12م, 3م, 6م, 9م)
+    * Cell color via scoreColor(score): 5-tier oklch blue→purple scale (very light → deep purple) — uses inline style backgroundColor
+    * Cell title attribute: "السبت 8م: درجة 85" (Arabic day + Arabic hour + score)
+    * Cells have hover effect: ring-2 + scale-110 + z-10 (subtle, doesn't break layout)
+    * Heatmap horizontally scrollable on mobile (overflow-x-auto scroll-area-brand + min-w-[640px])
+    * Color scale legend below: gradient bar from "منخفض" (light) to "مرتفع" (deep purple) using linear-gradient with the same 5 oklch colors
+  * Two-column grid (lg:grid-cols-2) below heatmap:
+    * Top 5 best times card: each row ranked #1-#5 (rank badge — #1 is bg-gradient-brand + shadow-brand, others bg-secondary), day + time range, score Badge (>=80 uses bg-gradient-brand), Arabic reason; #1 row uses bg-gradient-brand-soft accent
+    * Insights card: Lightbulb icon header, list of insights each with amber-tinted Lightbulb icon box, Separator, timezone note with MapPin icon
+  * Imports: CalendarClock, Clock, Flame, TrendingUp, Lightbulb, AlertCircle, MapPin from lucide-react; Card, Button, Badge, Skeleton, Separator, Select* from shadcn; PlatformBadge from @/components/platform-icon; PLATFORM_LIST, COUNTRIES from @/lib/platforms; useToast from @/hooks/use-toast; Platform, Country types from @/lib/types; cn from @/lib/utils
+  * Uses cn() for conditional class merging, aria-pressed on platform chips, aria-label on rank badges + select trigger, sr-only label for select
+- Verified API returns 200 for all 4 platforms × 9 countries = 36 combinations, 400 for invalid platform/country, 200 for default (no params)
+- Verified pattern correctness by inspecting raw heatmap output: TikTok peaks at evening hours 20-22 (8pm-10pm), lunch bump at 12-13; YouTube peaks at 17-21 (5pm-9pm) with weekend afternoon bump; Instagram dual peaks at 12 (lunch) and 20 (evening); Facebook peaks at 10 (morning), 13 (noon), 19 (evening)
+- Verified country offset shifts peaks correctly: TikTok global peaks at hours 20-22, TikTok sa (UTC+3) peaks at hours 0 and 23 (peak shifted 3 hours later in local time)
+- Ran `bun run lint` → 0 errors, 0 warnings (exit code 0, clean)
+- Dev server compiles successfully (verified via dev.log — no compile errors after my changes)
+
+Stage Summary:
+- Delivered `/home/z/my-project/src/app/api/tools/best-time/route.ts` (force-dynamic, deterministic — no LLM, validates inputs, returns 168-cell heatmap + top 5 best times + 4 Arabic insights + timezone label)
+- Delivered `/home/z/my-project/src/components/growth-tools/best-time-analyzer.tsx` — exported as named function `BestTimeAnalyzer` (no props, self-contained "use client" component)
+- Heatmap: 7×24 CSS grid using flex rows, each cell w-5 h-5 rounded-sm with 5-tier oklch blue→purple color scale, title attribute tooltips in Arabic, horizontally scrollable on mobile
+- Top 5 best times ranked #1-#5 with platform-aware Arabic reasons, score badges, #1 visually distinct (bg-gradient-brand rank badge + bg-gradient-brand-soft row)
+- Insights card with Lightbulb icons + timezone note
+- Color scale legend (منخفض → مرتفع) below heatmap
+- Filter card uses bg-gradient-brand-soft, PlatformBadge chips + shadcn Select for country, auto-fetches on mount and on any filter change
+- Loading skeleton mimics heatmap grid layout (7×24 + header)
+- Error state with AlertCircle + retry button + destructive toast
+- Lint clean (0 errors, 0 warnings); API verified for all 36 platform×country combinations
+- Matches established design system: bg-gradient-brand, bg-gradient-brand-soft, text-gradient-brand (in score badge), shadow-brand, scroll-area-brand, PlatformBadge, COUNTRIES, useToast, shadcn Card/Button/Badge/Skeleton/Separator/Select, cn(), section header font-display text-xl font-bold convention
+
+---
+Task ID: 22-23 (Final)
+Agent: Main (orchestrator)
+Task: Build growth tools wrapper, integrate into nav/page, verify all 5 tools
+
+Work Log:
+- Created `src/components/sections/growth-tools.tsx`: wrapper with 5 sub-tabs (hashtags/script/best-time/title/earnings), each tab card has gradient icon + label + description, active tab = bg-gradient-brand, responsive grid (2 cols mobile → 5 cols desktop)
+- Updated `src/components/site-header.tsx`: added { id: "growth", label: "أدوات النمو" } to NAV_ITEMS (now 7 nav items)
+- Updated `src/app/page.tsx`: added "growth" to TabId union, imported GrowthTools, rendered when activeTab === "growth"
+- Ran `bun run lint` -> 0 errors, 0 warnings
+- Agent Browser verification of all 5 growth tools:
+  1. Hashtag Generator: searched "وصفات طبخ" on TikTok → AI generated 16+ mixed Arabic/English hashtags (#fyp, #viral, #food, #cooking, #recipe, #الطبخ, #وصفات, #مطبخ, #طعام, #foodhacks, #cookingtips, #easyrecipes, #yummy, #delicious) with copy-all + per-hashtag copy buttons + reach estimate + tips
+  2. Video Script Generator: topic "كيف تصنع قهوة باردة في المنزل", YouTube, medium, educational → AI generated full script with hook, intro, 4 scenes (each with narration + visual), CTA, outro, copy-full-script button
+  3. Best Time to Post: TikTok/global → 168-cell heatmap (7 days × 24 hours) all rendered with score tooltips, color-graded cells, top-5 best times, insights section
+  4. Title Optimizer: analyzed "صنعت قهوة باردة بنكهة الكراميل ولا تصدقون ماذا حدث" → AI returned overall score gauge + criteria breakdown + improvement tips + 5 improved title alternatives each with copy/use-this buttons
+  5. Earnings Calculator: YouTube/tech/100K followers/500K views → $5,000/month (mid, range $2.5K-$7.5K), $60,000/year, RPM $10, revenue breakdown (AdSense/sponsorships/memberships/affiliate), tips
+- Mobile responsive verified at 375px: all 7 nav items in hamburger menu, growth tools sub-tabs wrap to 2-col grid
+- 0 console errors, 0 page errors throughout
+
+Stage Summary:
+- 5 new growth tools complete and verified (3 AI-powered: hashtags, script, title optimizer; 2 data-driven: best-time heatmap, earnings calculator)
+- New "أدوات النمو" 7th nav tab with internal sub-tab navigation
+- Site now has 7 main tabs + 5 growth sub-tools = comprehensive YouTube/TikTok growth platform
+- Total AI-powered features: 6 (competitor analysis, content generator, account integration, hashtag generator, script generator, title optimizer)
+- Lint clean, dev server stable, fully responsive, RTL Arabic

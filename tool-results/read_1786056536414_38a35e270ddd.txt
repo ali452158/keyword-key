@@ -1,0 +1,980 @@
+     1→"use client"
+     2→
+     3→import * as React from "react"
+     4→import {
+     5→  Lightbulb,
+     6→  Sparkles,
+     7→  Wand2,
+     8→  Copy,
+     9→  Check,
+    10→  Clock,
+    11→  Hash,
+    12→  Target,
+    13→  TrendingUp,
+    14→  ArrowLeft,
+    15→  ArrowUpRight,
+    16→  Flame,
+    17→  Link2,
+    18→  Quote,
+    19→  Video,
+    20→  Film,
+    21→  Loader2,
+    22→  AlertCircle,
+    23→} from "lucide-react"
+    24→import { Card, CardContent } from "@/components/ui/card"
+    25→import { Button } from "@/components/ui/button"
+    26→import { Input } from "@/components/ui/input"
+    27→import { Badge } from "@/components/ui/badge"
+    28→import { Skeleton } from "@/components/ui/skeleton"
+    29→import { Separator } from "@/components/ui/separator"
+    30→import { ScrollArea } from "@/components/ui/scroll-area"
+    31→import { PlatformBadge } from "@/components/platform-icon"
+    32→import { PLATFORMS } from "@/lib/platforms"
+    33→import { useToast } from "@/hooks/use-toast"
+    34→import { cn } from "@/lib/utils"
+    35→import { formatGrowth } from "@/lib/format"
+    36→import type { Platform, ContentIdea, KeywordTrend } from "@/lib/types"
+    37→
+    38→interface ContentGeneratorProps {
+    39→  initialKeyword?: string
+    40→  onNavigate?: (tab: string, keyword?: string) => void
+    41→}
+    42→
+    43→const COUNT_OPTIONS = [3, 6, 9] as const
+    44→
+    45→const LOADING_MESSAGES = [
+    46→  "الذكاء الاصطناعي يبتكر أفكاراً إبداعية لك...",
+    47→  "يحلل الكلمة المفتاحية ويدرس الترندات...",
+    48→  "يكتب العناوين الجذابة والجُمل الافتتاحية...",
+    49→  "يقترح الهاشتاقات المثالية لمحتواك...",
+    50→]
+    51→
+    52→export function ContentGenerator({
+    53→  initialKeyword,
+    54→  onNavigate,
+    55→}: ContentGeneratorProps) {
+    56→  const { toast } = useToast()
+    57→
+    58→  const [keyword, setKeyword] = React.useState(initialKeyword ?? "")
+    59→  const [platform, setPlatform] = React.useState<Platform>("tiktok")
+    60→  const [count, setCount] = React.useState<number>(6)
+    61→
+    62→  const [loading, setLoading] = React.useState(false)
+    63→  const [ideas, setIdeas] = React.useState<ContentIdea[]>([])
+    64→  const [hasGenerated, setHasGenerated] = React.useState(false)
+    65→
+    66→  const [copiedId, setCopiedId] = React.useState<string | null>(null)
+    67→  const [loadingMsgIdx, setLoadingMsgIdx] = React.useState(0)
+    68→
+    69→  // Related trends state
+    70→  const [allTrends, setAllTrends] = React.useState<KeywordTrend[]>([])
+    71→  const [trendsLoading, setTrendsLoading] = React.useState(false)
+    72→  const [trendsError, setTrendsError] = React.useState(false)
+    73→
+    74→  // Fetch trends from /api/trending?period=daily&limit=20
+    75→  const fetchTrends = React.useCallback(async function fetchTrends() {
+    76→    setTrendsLoading(true)
+    77→    setTrendsError(false)
+    78→    try {
+    79→      const res = await fetch(
+    80→        "/api/trending?period=daily&limit=20",
+    81→        { cache: "no-store" }
+    82→      )
+    83→      const json = await res.json()
+    84→      if (!res.ok || !json.success) {
+    85→        throw new Error(json?.error || "فشل تحميل الترندات")
+    86→      }
+    87→      const data: KeywordTrend[] = json.data ?? []
+    88→      setAllTrends(data)
+    89→    } catch {
+    90→      setTrendsError(true)
+    91→    } finally {
+    92→      setTrendsLoading(false)
+    93→    }
+    94→  }, [])
+    95→
+    96→  // Fetch trends on mount (once) so we always have data ready
+    97→  const didFetchOnMount = React.useRef(false)
+    98→  React.useEffect(() => {
+    99→    if (didFetchOnMount.current) return
+   100→    didFetchOnMount.current = true
+   101→    void fetchTrends()
+   102→  }, [fetchTrends])
+   103→
+   104→  // Debounced keyword change -> refetch trends (500ms)
+   105→  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+   106→  React.useEffect(() => {
+   107→    if (debounceRef.current) {
+   108→      clearTimeout(debounceRef.current)
+   109→    }
+   110→    debounceRef.current = setTimeout(() => {
+   111→      void fetchTrends()
+   112→    }, 500)
+   113→    return () => {
+   114→      if (debounceRef.current) {
+   115→        clearTimeout(debounceRef.current)
+   116→      }
+   117→    }
+   118→    // Re-fetch when keyword changes (debounced). fetchTrends is stable.
+   119→  }, [keyword, fetchTrends])
+   120→
+   121→  // Compute related trends based on the current keyword
+   122→  const relatedTrends = React.useMemo<KeywordTrend[]>(() => {
+   123→    const kw = keyword.trim().toLowerCase()
+   124→    if (!allTrends.length) return []
+   125→    if (!kw) {
+   126→      // No keyword: show top trends sorted by trendScore
+   127→      return [...allTrends]
+   128→        .sort((a, b) => b.trendScore - a.trendScore)
+   129→        .slice(0, 8)
+   130→    }
+   131→    // Match by keyword text contains OR category contains OR hashtag
+   132→    const matches = allTrends.filter((t) => {
+   133→      const tKw = t.keyword.toLowerCase()
+   134→      const tCat = (t.category || "").toLowerCase()
+   135→      const tHash = (t.hashtag || "").toLowerCase()
+   136→      return (
+   137→        tKw.includes(kw) ||
+   138→        kw.includes(tKw) ||
+   139→        tCat.includes(kw) ||
+   140→        kw.includes(tCat) ||
+   141→        tHash.includes(kw)
+   142→      )
+   143→    })
+   144→    if (matches.length > 0) {
+   145→      return matches
+   146→        .sort((a, b) => b.trendScore - a.trendScore)
+   147→        .slice(0, 8)
+   148→    }
+   149→    // No direct match: fall back to top trends
+   150→    return [...allTrends]
+   151→      .sort((a, b) => b.trendScore - a.trendScore)
+   152→      .slice(0, 8)
+   153→  }, [allTrends, keyword])
+   154→
+   155→  // Match an idea to a trending keyword
+   156→  const findIdeaTrend = React.useCallback(
+   157→    function findIdeaTrend(idea: ContentIdea): KeywordTrend | undefined {
+   158→      if (!relatedTrends.length) return undefined
+   159→      const title = (idea.title || "").toLowerCase()
+   160→      const hashText = (idea.hashtags || []).join(" ").toLowerCase()
+   161→      const haystack = `${title} ${hashText}`
+   162→      // Find a trend whose keyword appears in the idea text
+   163→      const matched = relatedTrends.find((t) => {
+   164→        const tKw = t.keyword.toLowerCase()
+   165→        const tHash = (t.hashtag || "").toLowerCase()
+   166→        return (
+   167→          (tKw.length > 2 && haystack.includes(tKw)) ||
+   168→          (tHash.length > 2 && haystack.includes(tHash))
+   169→        )
+   170→      })
+   171→      if (matched) return matched
+   172→      // Fall back: deterministic-ish pick by hashing idea title
+   173→      const idx =
+   174→        Math.abs(
+   175→          [...idea.title].reduce(
+   176→            (acc, ch) => acc + ch.charCodeAt(0),
+   177→            0
+   178→          )
+   179→        ) % relatedTrends.length
+   180→      return relatedTrends[idx]
+   181→    },
+   182→    [relatedTrends]
+   183→  )
+   184→
+   185→  // Auto-generate when navigated with initialKeyword
+   186→  const didAutoGen = React.useRef(false)
+   187→  React.useEffect(() => {
+   188→    if (initialKeyword && initialKeyword.trim() && !didAutoGen.current) {
+   189→      didAutoGen.current = true
+   190→      void generate(initialKeyword.trim(), platform, count)
+   191→    }
+   192→    // Intentionally run once on mount when initialKeyword is provided
+   193→  }, [initialKeyword])
+   194→
+   195→  // Rotate loading messages while waiting
+   196→  React.useEffect(() => {
+   197→    if (!loading) return
+   198→    setLoadingMsgIdx(0)
+   199→    const id = window.setInterval(() => {
+   200→      setLoadingMsgIdx((i) => (i + 1) % LOADING_MESSAGES.length)
+   201→    }, 2800)
+   202→    return () => window.clearInterval(id)
+   203→  }, [loading])
+   204→
+   205→  async function generate(kw: string, plat: Platform, cnt: number) {
+   206→    setLoading(true)
+   207→    try {
+   208→      const res = await fetch("/api/content/generate", {
+   209→        method: "POST",
+   210→        headers: { "Content-Type": "application/json" },
+   211→        body: JSON.stringify({ keyword: kw, platform: plat, count: cnt }),
+   212→      })
+   213→      const json = await res.json()
+   214→      if (!res.ok || !json.success) {
+   215→        throw new Error(json?.error || "فشل توليد الأفكار")
+   216→      }
+   217→      const data: ContentIdea[] = json.data ?? []
+   218→      setIdeas(data)
+   219→      setHasGenerated(true)
+   220→      toast({
+   221→        title: "تم توليد الأفكار بنجاح",
+   222→        description: `${data.length} فكرة محتوى جاهزة للاستخدام`,
+   223→      })
+   224→    } catch (err) {
+   225→      const message =
+   226→        err instanceof Error ? err.message : "حدث خطأ غير متوقع"
+   227→      toast({
+   228→        title: "تعذّر توليد الأفكار",
+   229→        description: message,
+   230→        variant: "destructive",
+   231→      })
+   232→      setIdeas([])
+   233→      setHasGenerated(true)
+   234→    } finally {
+   235→      setLoading(false)
+   236→    }
+   237→  }
+   238→
+   239→  function handleSubmit(e: React.FormEvent) {
+   240→    e.preventDefault()
+   241→    const trimmed = keyword.trim()
+   242→    if (!trimmed) {
+   243→      toast({
+   244→        title: "حقل مطلوب",
+   245→        description: "أدخل كلمة مفتاحية لتوليد أفكار المحتوى",
+   246→        variant: "destructive",
+   247→      })
+   248→      return
+   249→    }
+   250→    if (!platform) {
+   251→      toast({
+   252→        title: "اختر منصة",
+   253→        description: "اختر إحدى المنصات لاستهداف المحتوى",
+   254→        variant: "destructive",
+   255→      })
+   256→      return
+   257→    }
+   258→    void generate(trimmed, platform, count)
+   259→  }
+   260→
+   261→  async function handleCopy(idea: ContentIdea, id: string) {
+   262→    const text = [
+   263→      idea.title,
+   264→      "",
+   265→      `🗣️ ${idea.hook}`,
+   266→      "",
+   267→      idea.description,
+   268→      "",
+   269→      idea.hashtags.join(" "),
+   270→    ].join("\n")
+   271→
+   272→    try {
+   273→      await navigator.clipboard.writeText(text)
+   274→      setCopiedId(id)
+   275→      toast({ title: "تم نسخ الفكرة" })
+   276→      window.setTimeout(() => {
+   277→        setCopiedId((c) => (c === id ? null : c))
+   278→      }, 1800)
+   279→    } catch {
+   280→      toast({
+   281→        title: "تعذّر النسخ",
+   282→        description: "لم نتمكن من الوصول إلى الحافظة",
+   283→        variant: "destructive",
+   284→      })
+   285→    }
+   286→  }
+   287→
+   288→  function handleTrendClick(trendKw: string) {
+   289→    setKeyword(trendKw)
+   290→    toast({
+   291→      title: "تم اختيار الترند",
+   292→      description: `اضغط «ولّد الأفكار» لتوليد أفكار لـ ${trendKw}`,
+   293→    })
+   294→  }
+   295→
+   296→  const platformEntries = Object.values(PLATFORMS)
+   297→
+   298→  const showResults = !loading && ideas.length > 0
+   299→
+   300→  return (
+   301→    <div className="space-y-8">
+   302→      {/* Section header */}
+   303→      <header className="space-y-2">
+   304→        <h2 className="font-display text-xl font-bold flex items-center gap-2">
+   305→          <Wand2 className="w-5 h-5 text-primary" />
+   306→          مولّد أفكار المحتوى
+   307→          <Sparkles className="w-4 h-4 text-brand-purple" />
+   308→        </h2>
+   309→        <p className="text-sm text-muted-foreground max-w-2xl leading-relaxed">
+   310→          أدخل كلمة مفتاحية واختر منصتك المفضلة، وسيقوم الذكاء الاصطناعي
+   311→          بتوليد أفكار محتوى إبداعية جاهزة للتنفيذ مع عناوين جذابة، جُمل افتتاحية،
+   312→          هاشتاقات، وتقدير للوصول. مرتبطة بالترندات الحالية.
+   313→        </p>
+   314→      </header>
+   315→
+   316→      {/* Input form card */}
+   317→      <Card className="overflow-hidden border-primary/15 shadow-brand">
+   318→        <CardContent className="p-5 sm:p-6 space-y-5">
+   319→          <form onSubmit={handleSubmit} className="space-y-5">
+   320→            {/* Keyword input */}
+   321→            <div className="space-y-2">
+   322→              <label
+   323→                htmlFor="cg-keyword"
+   324→                className="text-sm font-semibold flex items-center gap-1.5"
+   325→              >
+   326→                <Hash className="w-4 h-4 text-primary" />
+   327→                الكلمة المفتاحية
+   328→              </label>
+   329→              <div className="relative">
+   330→                <Input
+   331→                  id="cg-keyword"
+   332→                  value={keyword}
+   333→                  onChange={(e) => setKeyword(e.target.value)}
+   334→                  placeholder="مثال: تصوير المنتجات، تربية القطط، تعلم الإنجليزية..."
+   335→                  className="h-11 pr-10 text-base rounded-lg"
+   336→                  autoComplete="off"
+   337→                  disabled={loading}
+   338→                />
+   339→                <Sparkles className="w-4 h-4 text-muted-foreground absolute top-1/2 -translate-y-1/2 left-3 pointer-events-none" />
+   340→              </div>
+   341→            </div>
+   342→
+   343→            {/* Platform selector */}
+   344→            <div className="space-y-2">
+   345→              <span className="text-sm font-semibold flex items-center gap-1.5">
+   346→                <Target className="w-4 h-4 text-primary" />
+   347→                المنصة المستهدفة
+   348→              </span>
+   349→              <div
+   350→                role="radiogroup"
+   351→                aria-label="اختيار المنصة"
+   352→                className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+   353→              >
+   354→                {platformEntries.map((p) => {
+   355→                  const active = platform === p.id
+   356→                  return (
+   357→                    <button
+   358→                      key={p.id}
+   359→                      type="button"
+   360→                      role="radio"
+   361→                      aria-checked={active}
+   362→                      onClick={() => setPlatform(p.id)}
+   363→                      disabled={loading}
+   364→                      className={cn(
+   365→                        "flex items-center justify-center gap-2 px-3 py-2.5 rounded-xl border text-sm font-semibold transition-all",
+   366→                        active
+   367→                          ? "bg-gradient-brand text-white border-transparent shadow-brand"
+   368→                          : "bg-card text-foreground border-border hover:bg-accent hover:border-primary/30"
+   369→                      )}
+   370→                    >
+   371→                      <PlatformBadge
+   372→                        platform={p.id}
+   373→                        size="sm"
+   374→                        className={cn(active && "brightness-0 invert")}
+   375→                      />
+   376→                      <span>{p.arabicName}</span>
+   377→                    </button>
+   378→                  )
+   379→                })}
+   380→              </div>
+   381→            </div>
+   382→
+   383→            {/* Count selector */}
+   384→            <div className="space-y-2">
+   385→              <span className="text-sm font-semibold flex items-center gap-1.5">
+   386→                <Film className="w-4 h-4 text-primary" />
+   387→                عدد الأفكار
+   388→              </span>
+   389→              <div
+   390→                role="radiogroup"
+   391→                aria-label="عدد الأفكار"
+   392→                className="inline-flex p-1 bg-secondary rounded-lg gap-1"
+   393→              >
+   394→                {COUNT_OPTIONS.map((n) => {
+   395→                  const active = count === n
+   396→                  return (
+   397→                    <button
+   398→                      key={n}
+   399→                      type="button"
+   400→                      role="radio"
+   401→                      aria-checked={active}
+   402→                      onClick={() => setCount(n)}
+   403→                      disabled={loading}
+   404→                      className={cn(
+   405→                        "px-5 py-1.5 rounded-md text-sm font-semibold transition-all min-w-[64px]",
+   406→                        active
+   407→                          ? "bg-gradient-brand text-white shadow-sm"
+   408→                          : "text-muted-foreground hover:text-foreground hover:bg-accent"
+   409→                      )}
+   410→                    >
+   411→                      {n} أفكار
+   412→                    </button>
+   413→                  )
+   414→                })}
+   415→              </div>
+   416→            </div>
+   417→
+   418→            {/* Submit */}
+   419→            <div className="flex flex-col sm:flex-row sm:items-center gap-3 pt-1">
+   420→              <Button
+   421→                type="submit"
+   422→                disabled={loading}
+   423→                className="bg-gradient-brand text-white hover:opacity-95 font-bold rounded-xl h-11 px-6 shadow-brand transition-all hover:shadow-brand-lg disabled:opacity-70"
+   424→              >
+   425→                {loading ? (
+   426→                  <>
+   427→                    <Loader2 className="w-4 h-4 animate-spin" />
+   428→                    جاري التوليد...
+   429→                  </>
+   430→                ) : (
+   431→                  <>
+   432→                    <Sparkles className="w-4 h-4" />
+   433→                    ولّد الأفكار
+   434→                  </>
+   435→                )}
+   436→              </Button>
+   437→              <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+   438→                <Clock className="w-3.5 h-3.5" />
+   439→                قد يستغرق التوليد 10-20 ثانية
+   440→              </p>
+   441→            </div>
+   442→          </form>
+   443→        </CardContent>
+   444→      </Card>
+   445→
+   446→      {/* States */}
+   447→      {loading && <LoadingState count={count} messageIdx={loadingMsgIdx} />}
+   448→
+   449→      {!loading && hasGenerated && ideas.length === 0 && <ErrorState />}
+   450→
+   451→      {!loading && !hasGenerated && ideas.length === 0 && (
+   452→        <EmptyState
+   453→          trends={relatedTrends}
+   454→          loading={trendsLoading}
+   455→          onTrendClick={handleTrendClick}
+   456→        />
+   457→      )}
+   458→
+   459→      {showResults && (
+   460→        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+   461→          {/* Ideas — 2 cols on lg */}
+   462→          <div className="lg:col-span-2 space-y-4">
+   463→            <section aria-label="نتائج الأفكار" className="space-y-4">
+   464→              <div className="flex items-center justify-between gap-3">
+   465→                <h3 className="font-display text-lg font-bold flex items-center gap-2">
+   466→                  <Lightbulb className="w-5 h-5 text-primary" />
+   467→                  أفكار مقترحة
+   468→                  <Badge
+   469→                    variant="secondary"
+   470→                    className="bg-primary/10 text-primary border border-primary/20"
+   471→                  >
+   472→                    {ideas.length}
+   473→                  </Badge>
+   474→                </h3>
+   475→                <Button
+   476→                  variant="ghost"
+   477→                  size="sm"
+   478→                  className="text-muted-foreground hover:text-primary"
+   479→                  onClick={() => {
+   480→                    setIdeas([])
+   481→                    setHasGenerated(false)
+   482→                  }}
+   483→                >
+   484→                  مسح
+   485→                </Button>
+   486→              </div>
+   487→
+   488→              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+   489→                {ideas.map((idea, idx) => {
+   490→                  const trend = findIdeaTrend(idea)
+   491→                  return (
+   492→                    <IdeaCard
+   493→                      key={`${idea.title}-${idx}`}
+   494→                      idea={idea}
+   495→                      index={idx}
+   496→                      copied={copiedId === `${idea.title}-${idx}`}
+   497→                      onCopy={() => handleCopy(idea, `${idea.title}-${idx}`)}
+   498→                      relatedTrend={trend}
+   499→                      onNavigate={onNavigate}
+   500→                    />
+   501→                  )
+   502→                })}
+   503→              </div>
+   504→            </section>
+   505→          </div>
+   506→
+   507→          {/* Related Trends sidebar — 1 col on lg */}
+   508→          <aside className="lg:sticky lg:top-4 lg:self-start">
+   509→            <RelatedTrendsCard
+   510→              trends={relatedTrends}
+   511→              loading={trendsLoading}
+   512→              error={trendsError}
+   513→              onRefresh={() => void fetchTrends()}
+   514→              onTrendClick={handleTrendClick}
+   515→              currentKeyword={keyword.trim()}
+   516→            />
+   517→          </aside>
+   518→        </div>
+   519→      )}
+   520→    </div>
+   521→  )
+   522→}
+   523→
+   524→/* ---------- Related Trends card ---------- */
+   525→
+   526→interface RelatedTrendsCardProps {
+   527→  trends: KeywordTrend[]
+   528→  loading: boolean
+   529→  error: boolean
+   530→  onRefresh: () => void
+   531→  onTrendClick: (keyword: string) => void
+   532→  currentKeyword: string
+   533→}
+   534→
+   535→function RelatedTrendsCard({
+   536→  trends,
+   537→  loading,
+   538→  error,
+   539→  onRefresh,
+   540→  onTrendClick,
+   541→  currentKeyword,
+   542→}: RelatedTrendsCardProps) {
+   543→  return (
+   544→    <Card className="overflow-hidden border-primary/15 shadow-brand">
+   545→      {/* Header */}
+   546→      <div className="bg-gradient-brand-soft dark:bg-card/60 px-5 py-4 border-b border-border/60 flex items-center justify-between gap-2">
+   547→        <div className="flex items-center gap-2">
+   548→          <div className="w-9 h-9 rounded-xl bg-gradient-brand flex items-center justify-center text-white shadow-brand shrink-0">
+   549→            <TrendingUp className="w-4 h-4" />
+   550→          </div>
+   551→          <div className="flex flex-col leading-tight">
+   552→            <h3 className="font-display text-sm font-bold flex items-center gap-1.5">
+   553→              الترندات المرتبطة الآن
+   554→              <span
+   555→                aria-hidden="true"
+   556→                className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"
+   557→              />
+   558→            </h3>
+   559→            <span className="text-[11px] text-muted-foreground">
+   560→              {currentKeyword
+   561→                ? `مرتبطة بـ: ${currentKeyword}`
+   562→                : "أحدث الترندات اليومية"}
+   563→            </span>
+   564→          </div>
+   565→        </div>
+   566→        {error && (
+   567→          <Button
+   568→            variant="ghost"
+   569→            size="sm"
+   570→            className="h-7 px-2 text-xs"
+   571→            onClick={onRefresh}
+   572→            aria-label="إعادة التحميل"
+   573→          >
+   574→            إعادة
+   575→          </Button>
+   576→        )}
+   577→      </div>
+   578→
+   579→      <CardContent className="p-3">
+   580→        {loading ? (
+   581→          <div className="space-y-2">
+   582→            {Array.from({ length: 6 }).map((_, i) => (
+   583→              <div
+   584→                key={i}
+   585→                className="flex items-center gap-2 p-2 rounded-lg border border-border/40"
+   586→              >
+   587→                <Skeleton className="w-8 h-8 rounded-lg" />
+   588→                <div className="flex-1 space-y-1.5">
+   589→                  <Skeleton className="h-3 w-2/3 rounded" />
+   590→                  <Skeleton className="h-2.5 w-1/2 rounded" />
+   591→                </div>
+   592→                <Skeleton className="h-5 w-10 rounded-md" />
+   593→              </div>
+   594→            ))}
+   595→          </div>
+   596→        ) : error ? (
+   597→          <div className="p-6 flex flex-col items-center text-center gap-3">
+   598→            <div className="w-10 h-10 rounded-full bg-destructive/10 flex items-center justify-center">
+   599→              <AlertCircle className="w-5 h-5 text-destructive" />
+   600→            </div>
+   601→            <p className="text-xs text-muted-foreground leading-relaxed">
+   602→              تعذّر تحميل الترندات الآن. حاول مرة أخرى.
+   603→            </p>
+   604→            <Button
+   605→              variant="outline"
+   606→              size="sm"
+   607→              onClick={onRefresh}
+   608→              className="h-8 text-xs"
+   609→            >
+   610→              إعادة المحاولة
+   611→            </Button>
+   612→          </div>
+   613→        ) : trends.length === 0 ? (
+   614→          <div className="p-6 text-center">
+   615→            <p className="text-xs text-muted-foreground">
+   616→              لا توجد ترندات متاحة حالياً
+   617→            </p>
+   618→          </div>
+   619→        ) : (
+   620→          <ScrollArea className="max-h-72 overflow-y-auto scroll-area-brand pr-1">
+   621→            <ul className="space-y-1.5">
+   622→              {trends.map((t) => (
+   623→                <li key={t.id}>
+   624→                  <TrendChip
+   625→                    trend={t}
+   626→                    onClick={() => onTrendClick(t.keyword)}
+   627→                  />
+   628→                </li>
+   629→              ))}
+   630→            </ul>
+   631→          </ScrollArea>
+   632→        )}
+   633→      </CardContent>
+   634→    </Card>
+   635→  )
+   636→}
+   637→
+   638→interface TrendChipProps {
+   639→  trend: KeywordTrend
+   640→  onClick: () => void
+   641→}
+   642→
+   643→function TrendChip({ trend, onClick }: TrendChipProps) {
+   644→  const growthColor =
+   645→    trend.growth >= 0
+   646→      ? "text-emerald-600 dark:text-emerald-400"
+   647→      : "text-rose-600 dark:text-rose-400"
+   648→  return (
+   649→    <button
+   650→      type="button"
+   651→      onClick={onClick}
+   652→      className="w-full flex items-center gap-2.5 p-2 rounded-lg border border-border/60 hover:border-primary/40 hover:bg-accent/60 transition-all text-right group"
+   653→      title={`استخدام ${trend.keyword} ككلمة مفتاحية`}
+   654→    >
+   655→      <PlatformBadge platform={trend.platform} size="sm" />
+   656→      <div className="flex-1 min-w-0">
+   657→        <div className="flex items-center gap-1">
+   658→          <span className="text-sm font-semibold truncate">
+   659→            {trend.keyword}
+   660→          </span>
+   661→          {trend.hashtag && (
+   662→            <span className="text-[10px] text-muted-foreground truncate">
+   663→              {trend.hashtag}
+   664→            </span>
+   665→          )}
+   666→        </div>
+   667→        <div className="flex items-center gap-1.5 mt-0.5">
+   668→          <Badge
+   669→            variant="outline"
+   670→            className="h-4 px-1.5 text-[10px] font-medium border-border/70 bg-secondary/60"
+   671→          >
+   672→            {trend.category}
+   673→          </Badge>
+   674→          <span
+   675→            className={cn(
+   676→              "text-[11px] font-bold flex items-center gap-0.5",
+   677→              growthColor
+   678→            )}
+   679→          >
+   680→            <Flame className="w-3 h-3" />
+   681→            {formatGrowth(trend.growth)}
+   682→          </span>
+   683→        </div>
+   684→      </div>
+   685→      <ArrowUpRight className="w-3.5 h-3.5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+   686→    </button>
+   687→  )
+   688→}
+   689→
+   690→/* ---------- Loading state ---------- */
+   691→
+   692→function LoadingState({
+   693→  count,
+   694→  messageIdx,
+   695→}: {
+   696→  count: number
+   697→  messageIdx: number
+   698→}) {
+   699→  return (
+   700→    <section aria-busy="true" aria-live="polite" className="space-y-6">
+   701→      {/* Animated loader banner */}
+   702→      <Card className="overflow-hidden border-primary/20 shadow-brand">
+   703→        <CardContent className="p-6 sm:p-8 flex flex-col items-center text-center gap-4">
+   704→          <div className="relative">
+   705→            <div className="absolute inset-0 bg-gradient-brand rounded-full blur-xl opacity-40 animate-pulse-glow" />
+   706→            <div className="relative w-16 h-16 rounded-full bg-gradient-brand flex items-center justify-center shadow-brand">
+   707→              <Sparkles className="w-8 h-8 text-white animate-pulse" />
+   708→            </div>
+   709→          </div>
+   710→          <div className="space-y-1.5">
+   711→            <div className="flex items-center justify-center gap-2 text-base font-bold">
+   712→              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+   713→              <span key={messageIdx} className="animate-in fade-in duration-500">
+   714→                {LOADING_MESSAGES[messageIdx]}
+   715→              </span>
+   716→            </div>
+   717→            <p className="text-xs text-muted-foreground">
+   718→              الذكاء الاصطناعي يبتكر محتوى مخصصاً لك
+   719→            </p>
+   720→          </div>
+   721→        </CardContent>
+   722→      </Card>
+   723→
+   724→      {/* Shimmer skeleton cards */}
+   725→      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+   726→        {Array.from({ length: Math.min(count, 9) }).map((_, i) => (
+   727→          <Card key={i} className="overflow-hidden">
+   728→            <CardContent className="p-5 space-y-4">
+   729→              <div className="flex items-center gap-2">
+   730→                <Skeleton className="w-9 h-9 rounded-xl" />
+   731→                <Skeleton className="h-5 w-20 rounded-md" />
+   732→                <div className="flex-1" />
+   733→                <Skeleton className="h-5 w-16 rounded-md" />
+   734→              </div>
+   735→              <Skeleton className="h-6 w-5/6 rounded-md" />
+   736→              <Skeleton className="h-16 w-full rounded-lg" />
+   737→              <div className="space-y-2">
+   738→                <Skeleton className="h-3 w-full rounded" />
+   739→                <Skeleton className="h-3 w-11/12 rounded" />
+   740→              </div>
+   741→              <div className="flex flex-wrap gap-1.5">
+   742→                <Skeleton className="h-6 w-16 rounded-md" />
+   743→                <Skeleton className="h-6 w-20 rounded-md" />
+   744→                <Skeleton className="h-6 w-14 rounded-md" />
+   745→              </div>
+   746→              <Separator />
+   747→              <div className="flex items-center justify-between">
+   748→                <Skeleton className="h-5 w-24 rounded-md" />
+   749→                <Skeleton className="h-8 w-16 rounded-md" />
+   750→              </div>
+   751→            </CardContent>
+   752→          </Card>
+   753→        ))}
+   754→      </div>
+   755→    </section>
+   756→  )
+   757→}
+   758→
+   759→/* ---------- Empty state ---------- */
+   760→
+   761→interface EmptyStateProps {
+   762→  trends: KeywordTrend[]
+   763→  loading: boolean
+   764→  onTrendClick: (keyword: string) => void
+   765→}
+   766→
+   767→function EmptyState({ trends, loading, onTrendClick }: EmptyStateProps) {
+   768→  return (
+   769→    <div className="space-y-4">
+   770→      <Card className="border-dashed border-2 border-border bg-gradient-brand-soft/40">
+   771→        <CardContent className="p-10 sm:p-16 flex flex-col items-center text-center gap-5">
+   772→          <div className="relative">
+   773→            <div className="absolute inset-0 bg-gradient-brand rounded-full blur-2xl opacity-20 animate-pulse-glow" />
+   774→            <div className="relative w-24 h-24 rounded-3xl bg-gradient-brand-soft flex items-center justify-center shadow-brand">
+   775→              <Lightbulb className="w-12 h-12 text-primary" />
+   776→            </div>
+   777→          </div>
+   778→          <div className="space-y-2 max-w-md">
+   779→            <h3 className="font-display text-xl font-bold">
+   780→              ابدأ بتوليد أفكار محتوى إبداعية
+   781→            </h3>
+   782→            <p className="text-sm text-muted-foreground leading-relaxed">
+   783→              أدخل كلمة مفتاحية واختر منصتك المفضلة، ثم اضغط «ولّد الأفكار»
+   784→              ليقوم الذكاء الاصطناعي باقتراح أفكار محتوى جاهزة للتنفيذ.
+   785→            </p>
+   786→          </div>
+   787→          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+   788→            <Sparkles className="w-3.5 h-3.5 text-brand-purple" />
+   789→            مدعوم بالذكاء الاصطناعي
+   790→          </div>
+   791→        </CardContent>
+   792→      </Card>
+   793→
+   794→      {/* Related trends preview on empty state (mobile-first: above ideas) */}
+   795→      <RelatedTrendsCard
+   796→        trends={trends}
+   797→        loading={loading}
+   798→        error={false}
+   799→        onRefresh={() => undefined}
+   800→        onTrendClick={onTrendClick}
+   801→        currentKeyword=""
+   802→      />
+   803→    </div>
+   804→  )
+   805→}
+   806→
+   807→/* ---------- Error state ---------- */
+   808→
+   809→function ErrorState() {
+   810→  return (
+   811→    <Card className="border-destructive/30 bg-destructive/5">
+   812→      <CardContent className="p-10 flex flex-col items-center text-center gap-4">
+   813→        <div className="w-16 h-16 rounded-2xl bg-destructive/10 flex items-center justify-center">
+   814→          <AlertCircle className="w-8 h-8 text-destructive" />
+   815→        </div>
+   816→        <div className="space-y-1.5">
+   817→          <h3 className="font-display text-lg font-bold">
+   818→            تعذّر توليد الأفكار
+   819→          </h3>
+   820→          <p className="text-sm text-muted-foreground max-w-md">
+   821→            حدث خطأ أثناء محاولة توليد الأفكار. حاول مرة أخرى بعد لحظات،
+   822→            أو جرّب كلمة مفتاحية مختلفة.
+   823→          </p>
+   824→        </div>
+   825→      </CardContent>
+   826→    </Card>
+   827→  )
+   828→}
+   829→
+   830→/* ---------- Idea card ---------- */
+   831→
+   832→interface IdeaCardProps {
+   833→  idea: ContentIdea
+   834→  index: number
+   835→  copied: boolean
+   836→  onCopy: () => void
+   837→  relatedTrend?: KeywordTrend
+   838→  onNavigate?: (tab: string, keyword?: string) => void
+   839→}
+   840→
+   841→function IdeaCard({
+   842→  idea,
+   843→  index,
+   844→  copied,
+   845→  onCopy,
+   846→  relatedTrend,
+   847→  onNavigate,
+   848→}: IdeaCardProps) {
+   849→  const trendKeyword = relatedTrend?.keyword
+   850→  const trendClickable = Boolean(onNavigate && trendKeyword)
+   851→
+   852→  function handleTrendClick() {
+   853→    if (onNavigate && trendKeyword) {
+   854→      onNavigate("research", trendKeyword)
+   855→    }
+   856→  }
+   857→
+   858→  return (
+   859→    <Card className="group relative overflow-hidden hover:shadow-brand-lg transition-all duration-300 hover:-translate-y-1 flex flex-col">
+   860→      {/* subtle gradient accent on top */}
+   861→      <div className="absolute inset-x-0 top-0 h-1 bg-gradient-brand opacity-80" />
+   862→
+   863→      <CardContent className="p-5 space-y-4 flex-1 flex flex-col">
+   864→        {/* Header: badges */}
+   865→        <div className="flex items-center gap-2 flex-wrap">
+   866→          <PlatformBadge platform={idea.platform} size="sm" />
+   867→          <Badge
+   868→            variant="outline"
+   869→            className="bg-primary/10 text-primary border-primary/20 gap-1"
+   870→          >
+   871→            <Video className="w-3 h-3" />
+   872→            {idea.type}
+   873→          </Badge>
+   874→          <div className="flex-1" />
+   875→          <Badge className="bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-50">
+   876→            <TrendingUp className="w-3 h-3" />
+   877→            {idea.estimatedReach}
+   878→          </Badge>
+   879→        </div>
+   880→
+   881→        {/* Title */}
+   882→        <h4 className="font-display text-lg font-bold leading-snug text-gradient-brand">
+   883→          {idea.title}
+   884→        </h4>
+   885→
+   886→        {/* Hook callout */}
+   887→        <div className="bg-accent/50 border-r-4 border-primary rounded-lg p-3 pr-3 flex items-start gap-2">
+   888→          <Quote className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+   889→          <p className="text-sm font-medium text-accent-foreground leading-relaxed">
+   890→            {idea.hook}
+   891→          </p>
+   892→        </div>
+   893→
+   894→        {/* Description */}
+   895→        <p className="text-sm text-muted-foreground leading-relaxed">
+   896→          {idea.description}
+   897→        </p>
+   898→
+   899→        {/* Hashtags */}
+   900→        {idea.hashtags?.length > 0 && (
+   901→          <div className="flex flex-wrap gap-1.5">
+   902→            {idea.hashtags.map((tag, i) => {
+   903→              const tagText = tag.startsWith("#") ? tag : `#${tag}`
+   904→              return (
+   905→                <span
+   906→                  key={i}
+   907→                  className="bg-secondary text-secondary-foreground px-2.5 py-1 rounded-md text-xs font-medium hover:bg-accent cursor-default transition-colors"
+   908→                >
+   909→                  {tagText}
+   910→                </span>
+   911→              )
+   912→            })}
+   913→          </div>
+   914→        )}
+   915→
+   916→        {/* Related trend badge */}
+   917→        {relatedTrend && trendKeyword && (
+   918→          <div className="flex items-center gap-2">
+   919→            {trendClickable ? (
+   920→              <button
+   921→                type="button"
+   922→                onClick={handleTrendClick}
+   923→                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-gradient-brand-soft text-primary border border-primary/20 hover:border-primary/40 hover:shadow-sm transition-all"
+   924→                title="ابحث عن هذا الترند"
+   925→              >
+   926→                <Link2 className="w-3 h-3" />
+   927→                مرتبط بالترند:
+   928→                <span className="font-bold">#{trendKeyword}</span>
+   929→                <ArrowUpRight className="w-3 h-3 opacity-70" />
+   930→              </button>
+   931→            ) : (
+   932→              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-gradient-brand-soft text-primary border border-primary/20">
+   933→                <Link2 className="w-3 h-3" />
+   934→                مرتبط بالترند:
+   935→                <span className="font-bold">#{trendKeyword}</span>
+   936→              </span>
+   937→            )}
+   938→          </div>
+   939→        )}
+   940→
+   941→        <div className="flex-1" />
+   942→
+   943→        <Separator />
+   944→
+   945→        {/* Footer */}
+   946→        <div className="flex items-center justify-between gap-2">
+   947→          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+   948→            <Clock className="w-3.5 h-3.5" />
+   949→            {idea.duration}
+   950→          </span>
+   951→          <Button
+   952→            variant="secondary"
+   953→            size="sm"
+   954→            onClick={onCopy}
+   955→            className="h-8 px-3 rounded-lg gap-1.5 text-xs font-semibold"
+   956→            aria-label="نسخ الفكرة"
+   957→          >
+   958→            {copied ? (
+   959→              <>
+   960→                <Check className="w-3.5 h-3.5 text-emerald-600" />
+   961→                تم النسخ
+   962→              </>
+   963→            ) : (
+   964→              <>
+   965→                <Copy className="w-3.5 h-3.5" />
+   966→                نسخ
+   967→              </>
+   968→            )}
+   969→          </Button>
+   970→        </div>
+   971→
+   972→        {/* Idea number watermark */}
+   973→        <span className="absolute top-3 left-3 text-[10px] font-bold text-muted-foreground/40">
+   974→          #{index + 1}
+   975→        </span>
+   976→      </CardContent>
+   977→    </Card>
+   978→  )
+   979→}
+   980→

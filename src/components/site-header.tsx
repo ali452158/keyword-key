@@ -19,6 +19,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: "competitor", label: "تحليل المنافسين" },
   { id: "generator", label: "مولّد الأفكار" },
   { id: "integration", label: "ربط الحسابات" },
+  { id: "growth", label: "أدوات النمو" },
 ]
 
 interface SiteHeaderProps {
