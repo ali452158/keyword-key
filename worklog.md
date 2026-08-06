@@ -684,3 +684,24 @@ Stage Summary:
 - Site now has 7 main tabs + 5 growth sub-tools = comprehensive YouTube/TikTok growth platform
 - Total AI-powered features: 6 (competitor analysis, content generator, account integration, hashtag generator, script generator, title optimizer)
 - Lint clean, dev server stable, fully responsive, RTL Arabic
+
+---
+Task ID: 7
+Agent: Main (orchestrator)
+Task: Add creator profile (image + name "ali tredr" + Telegram account @ali_0165 + Telegram channel https://t.me/FX_pulssGold) to the site
+
+Work Log:
+- Copied uploaded photo `/home/z/my-project/upload/photo_٢٠٢٦-٠٦-١٧_١٥-١٦-٥٣.jpg` (640x640 JPEG) to `/home/z/my-project/public/ali-tredr.jpg`
+- Created `src/components/telegram-icon.tsx` — custom Telegram SVG logo (circle + white paper plane, uses currentColor)
+- Created `src/components/creator-card.tsx` — CreatorCard component: circular avatar (next/image) with gradient ring + pulse glow, small Telegram badge on avatar, name "ali tredr" with gradient text, "صانع المحتوى" badge, two CTAs (primary "انضم لقناة تلجرام" → https://t.me/FX_pulssGold, secondary "@ali_0165" → https://t.me/ali_0165)
+- Created `src/components/floating-telegram.tsx` — FloatingTelegram FAB fixed to bottom-left (RTL friendly) with ping pulse ring + hover tooltip, links to Telegram channel
+- Updated `src/app/page.tsx` Footer:
+  - Added CreatorCard strip at top of footer
+  - Replaced generic Twitter/GitHub/LinkedIn social icons with real Telegram channel + account links
+  - Updated copyright line to "صُنع بـ ❤️ بواسطة ali tredr"
+  - Rendered <FloatingTelegram /> alongside footer
+
+Stage Summary:
+- Creator branding fully integrated: profile image, name, and both Telegram links (account + channel) visible in footer + floating button
+- Agent Browser verification confirmed: image loads (naturalWidth 111), name "ali tredr" present, 3 channel links + 2 account links rendered, floating button present, no console errors
+- Lint passes cleanly

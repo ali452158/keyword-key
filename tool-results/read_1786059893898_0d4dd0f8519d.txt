@@ -1,0 +1,712 @@
+     1→"use client"
+     2→
+     3→import * as React from "react"
+     4→import {
+     5→  TrendingUp,
+     6→  TrendingDown,
+     7→  Sparkles,
+     8→  ArrowLeft,
+     9→  Activity,
+    10→  Globe,
+    11→  BarChart3,
+    12→} from "lucide-react"
+    13→import {
+    14→  BarChart,
+    15→  Bar,
+    16→  AreaChart,
+    17→  Area,
+    18→  PieChart,
+    19→  Pie,
+    20→  Cell,
+    21→  XAxis,
+    22→  YAxis,
+    23→  CartesianGrid,
+    24→  Tooltip,
+    25→  Legend,
+    26→  Label,
+    27→  ResponsiveContainer,
+    28→} from "recharts"
+    29→import { Card } from "@/components/ui/card"
+    30→import { Button } from "@/components/ui/button"
+    31→import { Badge } from "@/components/ui/badge"
+    32→import { Skeleton } from "@/components/ui/skeleton"
+    33→import { PlatformBadge } from "@/components/platform-icon"
+    34→import { KeywordCard } from "@/components/keyword-card"
+    35→import { PLATFORMS, PLATFORM_LIST } from "@/lib/platforms"
+    36→import { formatNumber } from "@/lib/format"
+    37→import type { Platform, KeywordTrend } from "@/lib/types"
+    38→import { cn } from "@/lib/utils"
+    39→
+    40→interface DashboardProps {
+    41→  onNavigate: (tab: string, keyword?: string) => void
+    42→}
+    43→
+    44→interface PlatformStat {
+    45→  platform: Platform
+    46→  name: string
+    47→  totalKeywords: number
+    48→  trendingToday: number
+    49→  avgGrowth: number
+    50→  topCategory: string
+    51→}
+    52→
+    53→/* ------------------------------------------------------------------ */
+    54→/* Chart helpers                                                       */
+    55→/* ------------------------------------------------------------------ */
+    56→
+    57→// Platform brand colors used across all three charts.
+    58→// TikTok uses its pink-red accent (#FE2C55) for visibility on white
+    59→// backgrounds (true brand black would be invisible in dark mode too).
+    60→const PLATFORM_COLORS: Record<Platform, string> = {
+    61→  tiktok: "#FE2C55",
+    62→  youtube: "#FF0000",
+    63→  instagram: "#E4405F",
+    64→  facebook: "#1877F2",
+    65→}
+    66→
+    67→const PLATFORMS_FOR_CHART: Platform[] = [
+    68→  "tiktok",
+    69→  "youtube",
+    70→  "instagram",
+    71→  "facebook",
+    72→]
+    73→
+    74→const ARABIC_DAYS = [
+    75→  "السبت",
+    76→  "الأحد",
+    77→  "الاثنين",
+    78→  "الثلاثاء",
+    79→  "الأربعاء",
+    80→  "الخميس",
+    81→  "الجمعة",
+    82→]
+    83→
+    84→// Deterministic daily variation factors (no Math.random) so the chart
+    85→// stays stable across re-renders. Values mimic a weekly engagement curve
+    86→// where Thu/Fri (weekend in many Arabic locales) peak.
+    87→const DAILY_FACTORS = [0.82, 0.9, 0.98, 0.95, 1.08, 1.25, 1.18]
+    88→
+    89→interface BarDatum {
+    90→  keyword: string
+    91→  tiktok: number
+    92→  youtube: number
+    93→  instagram: number
+    94→  facebook: number
+    95→}
+    96→
+    97→interface AreaDatum {
+    98→  day: string
+    99→  tiktok: number
+   100→  youtube: number
+   101→  instagram: number
+   102→  facebook: number
+   103→}
+   104→
+   105→interface PieDatum {
+   106→  name: string
+   107→  value: number
+   108→  color: string
+   109→  platform: Platform
+   110→}
+   111→
+   112→/**
+   113→ * Group trends by keyword, summing each platform's volume. Returns the
+   114→ * top 5 keywords by total volume. Missing platform => 0.
+   115→ */
+   116→function buildBarChartData(trends: KeywordTrend[]): BarDatum[] {
+   117→  const grouped = new Map<string, BarDatum>()
+   118→  for (const t of trends) {
+   119→    let entry = grouped.get(t.keyword)
+   120→    if (!entry) {
+   121→      entry = {
+   122→        keyword: t.keyword,
+   123→        tiktok: 0,
+   124→        youtube: 0,
+   125→        instagram: 0,
+   126→        facebook: 0,
+   127→      }
+   128→      grouped.set(t.keyword, entry)
+   129→    }
+   130→    entry[t.platform] += t.searchVolume
+   131→  }
+   132→  return Array.from(grouped.values())
+   133→    .map((d) => ({
+   134→      datum: d,
+   135→      total: d.tiktok + d.youtube + d.instagram + d.facebook,
+   136→    }))
+   137→    .sort((a, b) => b.total - a.total)
+   138→    .slice(0, 5)
+   139→    .map((x) => x.datum)
+   140→}
+   141→
+   142→/**
+   143→ * Build 7 days of stacked area data. For each platform we take its total
+   144→ * volume from the trends, divide by 7 to get a daily baseline, then apply
+   145→ * a per-day variation factor.
+   146→ */
+   147→function buildAreaChartData(trends: KeywordTrend[]): AreaDatum[] {
+   148→  const totals: Record<Platform, number> = {
+   149→    tiktok: 0,
+   150→    youtube: 0,
+   151→    instagram: 0,
+   152→    facebook: 0,
+   153→  }
+   154→  for (const t of trends) totals[t.platform] += t.searchVolume
+   155→
+   156→  return ARABIC_DAYS.map((day, i) => {
+   157→    const f = DAILY_FACTORS[i]
+   158→    return {
+   159→      day,
+   160→      tiktok: Math.round((totals.tiktok / 7) * f),
+   161→      youtube: Math.round((totals.youtube / 7) * f),
+   162→      instagram: Math.round((totals.instagram / 7) * f),
+   163→      facebook: Math.round((totals.facebook / 7) * f),
+   164→    }
+   165→  })
+   166→}
+   167→
+   168→/**
+   169→ * Count how many trends belong to each platform (count > 0 only).
+   170→ */
+   171→function buildPieChartData(trends: KeywordTrend[]): PieDatum[] {
+   172→  const counts: Record<Platform, number> = {
+   173→    tiktok: 0,
+   174→    youtube: 0,
+   175→    instagram: 0,
+   176→    facebook: 0,
+   177→  }
+   178→  for (const t of trends) counts[t.platform]++
+   179→  return PLATFORMS_FOR_CHART.filter((p) => counts[p] > 0).map((p) => ({
+   180→    name: PLATFORMS[p].arabicName,
+   181→    value: counts[p],
+   182→    color: PLATFORM_COLORS[p],
+   183→    platform: p,
+   184→  }))
+   185→}
+   186→
+   187→function ChartTooltip({ active, payload, label }: any) {
+   188→  if (!active || !payload?.length) return null
+   189→  return (
+   190→    <div className="bg-popover border border-border rounded-lg p-2 shadow-md text-xs">
+   191→      {label && <p className="font-semibold mb-1">{label}</p>}
+   192→      {payload.map((p: any, i: number) => (
+   193→        <p key={i} className="flex items-center gap-1.5">
+   194→          <span
+   195→            className="w-2 h-2 rounded-full"
+   196→            style={{ background: p.color || p.fill }}
+   197→          />
+   198→          <span className="text-muted-foreground">{p.name}:</span>
+   199→          <span className="font-semibold">{formatNumber(p.value)}</span>
+   200→        </p>
+   201→      ))}
+   202→    </div>
+   203→  )
+   204→}
+   205→
+   206→/* ------------------------------------------------------------------ */
+   207→/* Dashboard component                                                 */
+   208→/* ------------------------------------------------------------------ */
+   209→
+   210→export function Dashboard({ onNavigate }: DashboardProps) {
+   211→  const [stats, setStats] = React.useState<PlatformStat[]>([])
+   212→  const [trends, setTrends] = React.useState<KeywordTrend[]>([])
+   213→  const [loading, setLoading] = React.useState(true)
+   214→  const [activePlatform, setActivePlatform] = React.useState<
+   215→    Platform | "all"
+   216→  >("all")
+   217→
+   218→  React.useEffect(() => {
+   219→    Promise.all([
+   220→      fetch("/api/stats").then((r) => r.json()),
+   221→      fetch("/api/trending?period=daily&limit=8").then((r) => r.json()),
+   222→    ])
+   223→      .then(([statsRes, trendsRes]) => {
+   224→        if (statsRes.success) setStats(statsRes.data.platforms)
+   225→        if (trendsRes.success) setTrends(trendsRes.data)
+   226→      })
+   227→      .finally(() => setLoading(false))
+   228→  }, [])
+   229→
+   230→  const filteredTrends =
+   231→    activePlatform === "all"
+   232→      ? trends
+   233→      : trends.filter((t) => t.platform === activePlatform)
+   234→
+   235→  // Derive chart data from the existing `trends` state (no extra fetch).
+   236→  const barData = React.useMemo(() => buildBarChartData(trends), [trends])
+   237→  const areaData = React.useMemo(() => buildAreaChartData(trends), [trends])
+   238→  const pieData = React.useMemo(() => buildPieChartData(trends), [trends])
+   239→  const pieTotal = React.useMemo(
+   240→    () => pieData.reduce((s, d) => s + d.value, 0),
+   241→    [pieData]
+   242→  )
+   243→
+   244→  return (
+   245→    <div className="space-y-8">
+   246→      {/* Hero */}
+   247→      <section className="relative overflow-hidden rounded-3xl bg-gradient-brand p-6 sm:p-10 lg:p-14 text-white shadow-brand-lg">
+   248→        <div className="absolute inset-0 bg-grid-pattern opacity-20" />
+   249→        <div className="absolute -top-24 -left-24 w-72 h-72 bg-white/10 rounded-full blur-3xl animate-pulse-glow" />
+   250→        <div className="absolute -bottom-32 -right-16 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-pulse-glow" />
+   251→
+   252→        <div className="relative z-10 max-w-3xl">
+   253→          <Badge className="mb-4 bg-white/20 text-white border-white/30 backdrop-blur-sm">
+   254→            <Sparkles className="w-3.5 h-3.5 ml-1.5" />
+   255→            منصة التحليل رقم 1 للسوشيال ميديا
+   256→          </Badge>
+   257→          <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight mb-4">
+   258→            اكتشف الكلمات المفتاحية الأكثر انتشاراً
+   259→            <br />
+   260→            <span className="text-white/90">
+   261→              على TikTok و YouTube و Instagram و Facebook
+   262→            </span>
+   263→          </h1>
+   264→          <p className="text-white/80 text-base sm:text-lg leading-relaxed mb-6 max-w-2xl">
+   265→            حلل الترندات اليومية، اكتشف فرص المحتوى، حلل منافسيك، وولّد أفكاراً
+   266→            إبداعية بضغطة زر — كل ذلك في منصة واحدة ذكية.
+   267→          </p>
+   268→          <div className="flex flex-wrap gap-3">
+   269→            <Button
+   270→              size="lg"
+   271→              variant="secondary"
+   272→              className="bg-white text-primary hover:bg-white/90 font-bold rounded-xl"
+   273→              onClick={() => onNavigate("research")}
+   274→            >
+   275→              ابدأ البحث الآن
+   276→              <ArrowLeft className="w-4 h-4 mr-1" />
+   277→            </Button>
+   278→            <Button
+   279→              size="lg"
+   280→              variant="outline"
+   281→              className="bg-white/10 text-white border-white/30 hover:bg-white/20 font-bold rounded-xl backdrop-blur-sm"
+   282→              onClick={() => onNavigate("generator")}
+   283→            >
+   284→              <Sparkles className="w-4 h-4 ml-1.5" />
+   285→              ولّد أفكار محتوى
+   286→            </Button>
+   287→          </div>
+   288→
+   289→          {/* platform icons row */}
+   290→          <div className="flex items-center gap-4 mt-8 flex-wrap">
+   291→            {PLATFORM_LIST.map((p) => (
+   292→              <div
+   293→                key={p.id}
+   294→                className="flex items-center gap-2 text-white/90 text-sm font-medium"
+   295→              >
+   296→                <PlatformBadge platform={p.id} size="sm" />
+   297→                <span>{p.arabicName}</span>
+   298→              </div>
+   299→            ))}
+   300→          </div>
+   301→        </div>
+   302→      </section>
+   303→
+   304→      {/* Stats Grid */}
+   305→      <section>
+   306→        <div className="flex items-center justify-between mb-4">
+   307→          <h2 className="font-display text-xl font-bold flex items-center gap-2">
+   308→            <Activity className="w-5 h-5 text-primary" />
+   309→            نظرة عامة على المنصات
+   310→          </h2>
+   311→        </div>
+   312→        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+   313→          {loading
+   314→            ? Array.from({ length: 4 }).map((_, i) => (
+   315→                <Skeleton key={i} className="h-36 rounded-2xl" />
+   316→              ))
+   317→            : stats.map((stat) => (
+   318→                <Card
+   319→                  key={stat.platform}
+   320→                  className="relative overflow-hidden p-4 sm:p-5 hover:shadow-brand transition-shadow cursor-pointer group"
+   321→                  onClick={() => {
+   322→                    setActivePlatform(stat.platform)
+   323→                    document
+   324→                      .getElementById("trending-grid")
+   325→                      ?.scrollIntoView({ behavior: "smooth" })
+   326→                  }}
+   327→                >
+   328→                  <div className="flex items-center justify-between mb-3">
+   329→                    <PlatformBadge platform={stat.platform} size="md" />
+   330→                    {stat.avgGrowth >= 0 ? (
+   331→                      <TrendingUp className="w-4 h-4 text-emerald-500" />
+   332→                    ) : (
+   333→                      <TrendingDown className="w-4 h-4 text-rose-500" />
+   334→                    )}
+   335→                  </div>
+   336→                  <p className="text-2xl font-extrabold text-foreground">
+   337→                    {formatNumber(stat.totalKeywords)}
+   338→                  </p>
+   339→                  <p className="text-xs text-muted-foreground mb-2">
+   340→                    إجمالي الكلمات المفتاحية
+   341→                  </p>
+   342→                  <div className="flex items-center justify-between text-[11px]">
+   343→                    <span className="text-muted-foreground">
+   344→                      ترند اليوم:{" "}
+   345→                      <span className="font-bold text-primary">
+   346→                        {formatNumber(stat.trendingToday)}
+   347→                      </span>
+   348→                    </span>
+   349→                    <span
+   350→                      className={cn(
+   351→                        "font-bold",
+   352→                        stat.avgGrowth >= 0
+   353→                          ? "text-emerald-600"
+   354→                          : "text-rose-600"
+   355→                      )}
+   356→                    >
+   357→                      {stat.avgGrowth >= 0 ? "+" : ""}
+   358→                      {stat.avgGrowth}%
+   359→                    </span>
+   360→                  </div>
+   361→                </Card>
+   362→              ))}
+   363→        </div>
+   364→      </section>
+   365→
+   366→      {/* Visual Analytics — charts section */}
+   367→      <section>
+   368→        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 mb-4">
+   369→          <div>
+   370→            <h2 className="font-display text-xl font-bold flex items-center gap-2">
+   371→              <BarChart3 className="w-5 h-5 text-primary" />
+   372→              تحليلات بصرية
+   373→            </h2>
+   374→            <p className="text-sm text-muted-foreground mt-0.5">
+   375→              حجم البحث والانتشار عبر المنصات
+   376→            </p>
+   377→          </div>
+   378→        </div>
+   379→
+   380→        {loading ? (
+   381→          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+   382→            {Array.from({ length: 3 }).map((_, i) => (
+   383→              <Skeleton key={i} className="h-80 rounded-2xl" />
+   384→            ))}
+   385→          </div>
+   386→        ) : (
+   387→          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+   388→            {/* Chart 1 — Bar chart: search volume comparison */}
+   389→            <Card className="p-4 sm:p-5 gap-3">
+   390→              <div className="flex items-center justify-between">
+   391→                <h3 className="font-semibold text-sm flex items-center gap-1.5">
+   392→                  <BarChart3 className="w-4 h-4 text-primary" />
+   393→                  مقارنة حجم البحث بين المنصات
+   394→                </h3>
+   395→              </div>
+   396→              <div className="h-64 w-full -mx-1">
+   397→                <ResponsiveContainer width="100%" height="100%">
+   398→                  <BarChart
+   399→                    data={barData}
+   400→                    margin={{ top: 8, right: 8, left: 0, bottom: 28 }}
+   401→                    barCategoryGap="28%"
+   402→                  >
+   403→                    <CartesianGrid
+   404→                      strokeDasharray="3 3"
+   405→                      stroke="currentColor"
+   406→                      className="text-border"
+   407→                      vertical={false}
+   408→                    />
+   409→                    <XAxis
+   410→                      dataKey="keyword"
+   411→                      tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+   412→                      tickLine={false}
+   413→                      axisLine={false}
+   414→                      interval={0}
+   415→                      angle={-20}
+   416→                      textAnchor="end"
+   417→                      height={48}
+   418→                    />
+   419→                    <YAxis
+   420→                      tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+   421→                      tickLine={false}
+   422→                      axisLine={false}
+   423→                      width={38}
+   424→                      tickFormatter={(v: number) => formatNumber(v)}
+   425→                    />
+   426→                    <Tooltip
+   427→                      content={<ChartTooltip />}
+   428→                      cursor={{
+   429→                        fill: "var(--accent)",
+   430→                        opacity: 0.35,
+   431→                      }}
+   432→                    />
+   433→                    <Legend
+   434→                      wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+   435→                      iconType="circle"
+   436→                      iconSize={8}
+   437→                    />
+   438→                    <Bar
+   439→                      dataKey="tiktok"
+   440→                      name="تيك توك"
+   441→                      fill={PLATFORM_COLORS.tiktok}
+   442→                      radius={[4, 4, 0, 0]}
+   443→                      maxBarSize={22}
+   444→                    />
+   445→                    <Bar
+   446→                      dataKey="youtube"
+   447→                      name="يوتيوب"
+   448→                      fill={PLATFORM_COLORS.youtube}
+   449→                      radius={[4, 4, 0, 0]}
+   450→                      maxBarSize={22}
+   451→                    />
+   452→                    <Bar
+   453→                      dataKey="instagram"
+   454→                      name="انستجرام"
+   455→                      fill={PLATFORM_COLORS.instagram}
+   456→                      radius={[4, 4, 0, 0]}
+   457→                      maxBarSize={22}
+   458→                    />
+   459→                    <Bar
+   460→                      dataKey="facebook"
+   461→                      name="فيسبوك"
+   462→                      fill={PLATFORM_COLORS.facebook}
+   463→                      radius={[4, 4, 0, 0]}
+   464→                      maxBarSize={22}
+   465→                    />
+   466→                  </BarChart>
+   467→                </ResponsiveContainer>
+   468→              </div>
+   469→            </Card>
+   470→
+   471→            {/* Chart 2 — Area chart: weekly spread trend */}
+   472→            <Card className="p-4 sm:p-5 gap-3">
+   473→              <div className="flex items-center justify-between">
+   474→                <h3 className="font-semibold text-sm flex items-center gap-1.5">
+   475→                  <BarChart3 className="w-4 h-4 text-primary" />
+   476→                  اتجاه الانتشار خلال الأسبوع
+   477→                </h3>
+   478→              </div>
+   479→              <div className="h-64 w-full -mx-1">
+   480→                <ResponsiveContainer width="100%" height="100%">
+   481→                  <AreaChart
+   482→                    data={areaData}
+   483→                    margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
+   484→                  >
+   485→                    <defs>
+   486→                      {PLATFORMS_FOR_CHART.map((p) => (
+   487→                        <linearGradient
+   488→                          key={p}
+   489→                          id={`grad-${p}`}
+   490→                          x1="0"
+   491→                          y1="0"
+   492→                          x2="0"
+   493→                          y2="1"
+   494→                        >
+   495→                          <stop
+   496→                            offset="0%"
+   497→                            stopColor={PLATFORM_COLORS[p]}
+   498→                            stopOpacity={0.4}
+   499→                          />
+   500→                          <stop
+   501→                            offset="100%"
+   502→                            stopColor={PLATFORM_COLORS[p]}
+   503→                            stopOpacity={0.05}
+   504→                          />
+   505→                        </linearGradient>
+   506→                      ))}
+   507→                    </defs>
+   508→                    <CartesianGrid
+   509→                      strokeDasharray="3 3"
+   510→                      stroke="currentColor"
+   511→                      className="text-border"
+   512→                      vertical={false}
+   513→                    />
+   514→                    <XAxis
+   515→                      dataKey="day"
+   516→                      tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+   517→                      tickLine={false}
+   518→                      axisLine={false}
+   519→                      interval={0}
+   520→                    />
+   521→                    <YAxis
+   522→                      tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+   523→                      tickLine={false}
+   524→                      axisLine={false}
+   525→                      width={38}
+   526→                      tickFormatter={(v: number) => formatNumber(v)}
+   527→                    />
+   528→                    <Tooltip content={<ChartTooltip />} />
+   529→                    <Legend
+   530→                      wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+   531→                      iconType="circle"
+   532→                      iconSize={8}
+   533→                    />
+   534→                    {PLATFORMS_FOR_CHART.map((p) => (
+   535→                      <Area
+   536→                        key={p}
+   537→                        type="monotone"
+   538→                        dataKey={p}
+   539→                        name={PLATFORMS[p].arabicName}
+   540→                        stackId="1"
+   541→                        stroke={PLATFORM_COLORS[p]}
+   542→                        strokeWidth={2}
+   543→                        fill={`url(#grad-${p})`}
+   544→                        dot={false}
+   545→                        activeDot={{ r: 3, strokeWidth: 0 }}
+   546→                      />
+   547→                    ))}
+   548→                  </AreaChart>
+   549→                </ResponsiveContainer>
+   550→              </div>
+   551→            </Card>
+   552→
+   553→            {/* Chart 3 — Donut: trends distribution per platform */}
+   554→            <Card className="p-4 sm:p-5 gap-3">
+   555→              <div className="flex items-center justify-between">
+   556→                <h3 className="font-semibold text-sm flex items-center gap-1.5">
+   557→                  <BarChart3 className="w-4 h-4 text-primary" />
+   558→                  توزيع الترندات حسب المنصة
+   559→                </h3>
+   560→              </div>
+   561→              <div className="h-64 w-full -mx-1 relative">
+   562→                <ResponsiveContainer width="100%" height="100%">
+   563→                  <PieChart>
+   564→                    <Pie
+   565→                      data={pieData}
+   566→                      dataKey="value"
+   567→                      nameKey="name"
+   568→                      cx="50%"
+   569→                      cy="48%"
+   570→                      innerRadius={55}
+   571→                      outerRadius={85}
+   572→                      paddingAngle={2}
+   573→                      stroke="none"
+   574→                    >
+   575→                      {pieData.map((d) => (
+   576→                        <Cell key={d.platform} fill={d.color} />
+   577→                      ))}
+   578→                      <Label
+   579→                        content={(props: any) => {
+   580→                          const { cx, cy } = props.viewBox ?? {}
+   581→                          if (cx == null || cy == null) return null
+   582→                          return (
+   583→                            <g>
+   584→                              <text
+   585→                                x={cx}
+   586→                                y={cy - 4}
+   587→                                textAnchor="middle"
+   588→                                dominantBaseline="middle"
+   589→                                style={{
+   590→                                  fontSize: 22,
+   591→                                  fontWeight: 800,
+   592→                                  fill: "var(--foreground)",
+   593→                                }}
+   594→                              >
+   595→                                {pieTotal}
+   596→                              </text>
+   597→                              <text
+   598→                                x={cx}
+   599→                                y={cy + 14}
+   600→                                textAnchor="middle"
+   601→                                dominantBaseline="middle"
+   602→                                style={{
+   603→                                  fontSize: 10,
+   604→                                  fill: "var(--muted-foreground)",
+   605→                                }}
+   606→                              >
+   607→                                إجمالي الترندات
+   608→                              </text>
+   609→                            </g>
+   610→                          )
+   611→                        }}
+   612→                      />
+   613→                    </Pie>
+   614→                    <Tooltip content={<ChartTooltip />} />
+   615→                    <Legend
+   616→                      wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+   617→                      iconType="circle"
+   618→                      iconSize={8}
+   619→                      formatter={(value: string, entry: any) => {
+   620→                        const total = pieTotal || 1
+   621→                        const pct = Math.round(
+   622→                          ((entry?.payload?.value ?? 0) / total) * 100
+   623→                        )
+   624→                        return (
+   625→                          <span
+   626→                            style={{ color: "var(--foreground)" }}
+   627→                            className="text-[11px]"
+   628→                          >
+   629→                            {value} · {entry?.payload?.value ?? 0} ({pct}%)
+   630→                          </span>
+   631→                        )
+   632→                      }}
+   633→                    />
+   634→                  </PieChart>
+   635→                </ResponsiveContainer>
+   636→              </div>
+   637→            </Card>
+   638→          </div>
+   639→        )}
+   640→      </section>
+   641→
+   642→      {/* Trending Keywords */}
+   643→      <section id="trending-grid">
+   644→        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+   645→          <div>
+   646→            <h2 className="font-display text-xl font-bold flex items-center gap-2">
+   647→              <Globe className="w-5 h-5 text-primary" />
+   648→              الكلمات الأكثر انتشاراً اليوم
+   649→            </h2>
+   650→            <p className="text-sm text-muted-foreground mt-0.5">
+   651→              ترندات حية من جميع المنصات
+   652→            </p>
+   653→          </div>
+   654→          <Button
+   655→            variant="outline"
+   656→            size="sm"
+   657→            className="rounded-lg"
+   658→            onClick={() => onNavigate("trends")}
+   659→          >
+   660→            عرض كل الترندات
+   661→            <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+   662→          </Button>
+   663→        </div>
+   664→
+   665→        {/* Platform filter chips */}
+   666→        <div className="flex gap-2 overflow-x-auto pb-2 mb-4 scroll-area-brand">
+   667→          <button
+   668→            onClick={() => setActivePlatform("all")}
+   669→            className={cn(
+   670→              "shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold transition-all",
+   671→              activePlatform === "all"
+   672→                ? "bg-gradient-brand text-white shadow-brand"
+   673→                : "bg-secondary text-secondary-foreground hover:bg-accent"
+   674→            )}
+   675→          >
+   676→            الكل
+   677→          </button>
+   678→          {PLATFORM_LIST.map((p) => (
+   679→            <button
+   680→              key={p.id}
+   681→              onClick={() => setActivePlatform(p.id)}
+   682→              className={cn(
+   683→                "shrink-0 px-4 py-1.5 rounded-full text-xs font-semibold transition-all flex items-center gap-1.5",
+   684→                activePlatform === p.id
+   685→                  ? "bg-gradient-brand text-white shadow-brand"
+   686→                  : "bg-secondary text-secondary-foreground hover:bg-accent"
+   687→              )}
+   688→            >
+   689→              <PlatformBadge platform={p.id} size="sm" className="scale-75 origin-center" />
+   690→              {p.arabicName}
+   691→            </button>
+   692→          ))}
+   693→        </div>
+   694→
+   695→        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4">
+   696→          {loading
+   697→            ? Array.from({ length: 8 }).map((_, i) => (
+   698→                <Skeleton key={i} className="h-36 rounded-2xl" />
+   699→              ))
+   700→            : filteredTrends.slice(0, 8).map((trend) => (
+   701→                <KeywordCard
+   702→                  key={trend.id}
+   703→                  trend={trend}
+   704→                  onSelect={(t) => onNavigate("research", t.keyword)}
+   705→                />
+   706→              ))}
+   707→        </div>
+   708→      </section>
+   709→    </div>
+   710→  )
+   711→}
+   712→

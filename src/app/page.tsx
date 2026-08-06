@@ -9,7 +9,10 @@ import { CompetitorAnalysis } from "@/components/sections/competitor-analysis"
 import { ContentGenerator } from "@/components/sections/content-generator"
 import { SocialIntegration } from "@/components/sections/social-integration"
 import { GrowthTools } from "@/components/sections/growth-tools"
-import { KeyRound, Github, Twitter, Linkedin, Heart } from "lucide-react"
+import { CreatorCard } from "@/components/creator-card"
+import { FloatingTelegram } from "@/components/floating-telegram"
+import { TelegramIcon } from "@/components/telegram-icon"
+import { KeyRound, Heart, Send } from "lucide-react"
 
 type TabId =
   | "dashboard"
@@ -81,6 +84,7 @@ export default function Home() {
       </main>
 
       <Footer />
+      <FloatingTelegram />
     </div>
   )
 }
@@ -89,7 +93,10 @@ function Footer() {
   return (
     <footer className="mt-auto border-t border-border/60 bg-gradient-brand-soft dark:bg-card/40">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        {/* Creator strip */}
+        <CreatorCard />
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-8">
           {/* Brand */}
           <div className="md:col-span-2">
             <div className="flex items-center gap-2.5 mb-3">
@@ -112,25 +119,22 @@ function Footer() {
             </p>
             <div className="flex items-center gap-2 mt-4">
               <a
-                href="#"
-                aria-label="Twitter"
-                className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
+                href="https://t.me/FX_pulssGold"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="قناة تلجرام FX_pulssGold"
+                className="w-9 h-9 rounded-lg bg-[#229ED9] flex items-center justify-center text-white hover:bg-[#1b8dc4] hover:-translate-y-0.5 transition-all"
               >
-                <Twitter className="w-4 h-4" />
+                <TelegramIcon size={18} className="text-white" />
               </a>
               <a
-                href="#"
-                aria-label="GitHub"
+                href="https://t.me/ali_0165"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="حساب تلجرام ali_0165"
                 className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
               >
-                <Github className="w-4 h-4" />
-              </a>
-              <a
-                href="#"
-                aria-label="LinkedIn"
-                className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
-              >
-                <Linkedin className="w-4 h-4" />
+                <Send className="w-4 h-4" />
               </a>
             </div>
           </div>
@@ -197,7 +201,8 @@ function Footer() {
           <p className="text-xs text-muted-foreground flex items-center gap-1.5">
             صُنع بـ
             <Heart className="w-3.5 h-3.5 text-rose-500 fill-rose-500" />
-            لمحترفي السوشيال ميديا
+            بواسطة
+            <span className="font-semibold text-gradient-brand">ali tredr</span>
           </p>
         </div>
       </div>
