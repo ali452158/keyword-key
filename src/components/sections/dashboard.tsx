@@ -8,14 +8,31 @@ import {
   ArrowLeft,
   Activity,
   Globe,
+  BarChart3,
 } from "lucide-react"
+import {
+  BarChart,
+  Bar,
+  AreaChart,
+  Area,
+  PieChart,
+  Pie,
+  Cell,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  Label,
+  ResponsiveContainer,
+} from "recharts"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PlatformBadge } from "@/components/platform-icon"
 import { KeywordCard } from "@/components/keyword-card"
-import { PLATFORM_LIST } from "@/lib/platforms"
+import { PLATFORMS, PLATFORM_LIST } from "@/lib/platforms"
 import { formatNumber } from "@/lib/format"
 import type { Platform, KeywordTrend } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -32,6 +49,163 @@ interface PlatformStat {
   avgGrowth: number
   topCategory: string
 }
+
+/* ------------------------------------------------------------------ */
+/* Chart helpers                                                       */
+/* ------------------------------------------------------------------ */
+
+// Platform brand colors used across all three charts.
+// TikTok uses its pink-red accent (#FE2C55) for visibility on white
+// backgrounds (true brand black would be invisible in dark mode too).
+const PLATFORM_COLORS: Record<Platform, string> = {
+  tiktok: "#FE2C55",
+  youtube: "#FF0000",
+  instagram: "#E4405F",
+  facebook: "#1877F2",
+}
+
+const PLATFORMS_FOR_CHART: Platform[] = [
+  "tiktok",
+  "youtube",
+  "instagram",
+  "facebook",
+]
+
+const ARABIC_DAYS = [
+  "السبت",
+  "الأحد",
+  "الاثنين",
+  "الثلاثاء",
+  "الأربعاء",
+  "الخميس",
+  "الجمعة",
+]
+
+// Deterministic daily variation factors (no Math.random) so the chart
+// stays stable across re-renders. Values mimic a weekly engagement curve
+// where Thu/Fri (weekend in many Arabic locales) peak.
+const DAILY_FACTORS = [0.82, 0.9, 0.98, 0.95, 1.08, 1.25, 1.18]
+
+interface BarDatum {
+  keyword: string
+  tiktok: number
+  youtube: number
+  instagram: number
+  facebook: number
+}
+
+interface AreaDatum {
+  day: string
+  tiktok: number
+  youtube: number
+  instagram: number
+  facebook: number
+}
+
+interface PieDatum {
+  name: string
+  value: number
+  color: string
+  platform: Platform
+}
+
+/**
+ * Group trends by keyword, summing each platform's volume. Returns the
+ * top 5 keywords by total volume. Missing platform => 0.
+ */
+function buildBarChartData(trends: KeywordTrend[]): BarDatum[] {
+  const grouped = new Map<string, BarDatum>()
+  for (const t of trends) {
+    let entry = grouped.get(t.keyword)
+    if (!entry) {
+      entry = {
+        keyword: t.keyword,
+        tiktok: 0,
+        youtube: 0,
+        instagram: 0,
+        facebook: 0,
+      }
+      grouped.set(t.keyword, entry)
+    }
+    entry[t.platform] += t.searchVolume
+  }
+  return Array.from(grouped.values())
+    .map((d) => ({
+      datum: d,
+      total: d.tiktok + d.youtube + d.instagram + d.facebook,
+    }))
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5)
+    .map((x) => x.datum)
+}
+
+/**
+ * Build 7 days of stacked area data. For each platform we take its total
+ * volume from the trends, divide by 7 to get a daily baseline, then apply
+ * a per-day variation factor.
+ */
+function buildAreaChartData(trends: KeywordTrend[]): AreaDatum[] {
+  const totals: Record<Platform, number> = {
+    tiktok: 0,
+    youtube: 0,
+    instagram: 0,
+    facebook: 0,
+  }
+  for (const t of trends) totals[t.platform] += t.searchVolume
+
+  return ARABIC_DAYS.map((day, i) => {
+    const f = DAILY_FACTORS[i]
+    return {
+      day,
+      tiktok: Math.round((totals.tiktok / 7) * f),
+      youtube: Math.round((totals.youtube / 7) * f),
+      instagram: Math.round((totals.instagram / 7) * f),
+      facebook: Math.round((totals.facebook / 7) * f),
+    }
+  })
+}
+
+/**
+ * Count how many trends belong to each platform (count > 0 only).
+ */
+function buildPieChartData(trends: KeywordTrend[]): PieDatum[] {
+  const counts: Record<Platform, number> = {
+    tiktok: 0,
+    youtube: 0,
+    instagram: 0,
+    facebook: 0,
+  }
+  for (const t of trends) counts[t.platform]++
+  return PLATFORMS_FOR_CHART.filter((p) => counts[p] > 0).map((p) => ({
+    name: PLATFORMS[p].arabicName,
+    value: counts[p],
+    color: PLATFORM_COLORS[p],
+    platform: p,
+  }))
+}
+
+function ChartTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null
+  return (
+    <div className="bg-popover border border-border rounded-lg p-2 shadow-md text-xs">
+      {label && <p className="font-semibold mb-1">{label}</p>}
+      {payload.map((p: any, i: number) => (
+        <p key={i} className="flex items-center gap-1.5">
+          <span
+            className="w-2 h-2 rounded-full"
+            style={{ background: p.color || p.fill }}
+          />
+          <span className="text-muted-foreground">{p.name}:</span>
+          <span className="font-semibold">{formatNumber(p.value)}</span>
+        </p>
+      ))}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Dashboard component                                                 */
+/* ------------------------------------------------------------------ */
 
 export function Dashboard({ onNavigate }: DashboardProps) {
   const [stats, setStats] = React.useState<PlatformStat[]>([])
@@ -57,6 +231,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
     activePlatform === "all"
       ? trends
       : trends.filter((t) => t.platform === activePlatform)
+
+  // Derive chart data from the existing `trends` state (no extra fetch).
+  const barData = React.useMemo(() => buildBarChartData(trends), [trends])
+  const areaData = React.useMemo(() => buildAreaChartData(trends), [trends])
+  const pieData = React.useMemo(() => buildPieChartData(trends), [trends])
+  const pieTotal = React.useMemo(
+    () => pieData.reduce((s, d) => s + d.value, 0),
+    [pieData]
+  )
 
   return (
     <div className="space-y-8">
@@ -178,6 +361,282 @@ export function Dashboard({ onNavigate }: DashboardProps) {
                 </Card>
               ))}
         </div>
+      </section>
+
+      {/* Visual Analytics — charts section */}
+      <section>
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-2 mb-4">
+          <div>
+            <h2 className="font-display text-xl font-bold flex items-center gap-2">
+              <BarChart3 className="w-5 h-5 text-primary" />
+              تحليلات بصرية
+            </h2>
+            <p className="text-sm text-muted-foreground mt-0.5">
+              حجم البحث والانتشار عبر المنصات
+            </p>
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-80 rounded-2xl" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Chart 1 — Bar chart: search volume comparison */}
+            <Card className="p-4 sm:p-5 gap-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm flex items-center gap-1.5">
+                  <BarChart3 className="w-4 h-4 text-primary" />
+                  مقارنة حجم البحث بين المنصات
+                </h3>
+              </div>
+              <div className="h-64 w-full -mx-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart
+                    data={barData}
+                    margin={{ top: 8, right: 8, left: 0, bottom: 28 }}
+                    barCategoryGap="28%"
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="currentColor"
+                      className="text-border"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="keyword"
+                      tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                      tickLine={false}
+                      axisLine={false}
+                      interval={0}
+                      angle={-20}
+                      textAnchor="end"
+                      height={48}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={38}
+                      tickFormatter={(v: number) => formatNumber(v)}
+                    />
+                    <Tooltip
+                      content={<ChartTooltip />}
+                      cursor={{
+                        fill: "var(--accent)",
+                        opacity: 0.35,
+                      }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+                      iconType="circle"
+                      iconSize={8}
+                    />
+                    <Bar
+                      dataKey="tiktok"
+                      name="تيك توك"
+                      fill={PLATFORM_COLORS.tiktok}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={22}
+                    />
+                    <Bar
+                      dataKey="youtube"
+                      name="يوتيوب"
+                      fill={PLATFORM_COLORS.youtube}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={22}
+                    />
+                    <Bar
+                      dataKey="instagram"
+                      name="انستجرام"
+                      fill={PLATFORM_COLORS.instagram}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={22}
+                    />
+                    <Bar
+                      dataKey="facebook"
+                      name="فيسبوك"
+                      fill={PLATFORM_COLORS.facebook}
+                      radius={[4, 4, 0, 0]}
+                      maxBarSize={22}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            {/* Chart 2 — Area chart: weekly spread trend */}
+            <Card className="p-4 sm:p-5 gap-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm flex items-center gap-1.5">
+                  <BarChart3 className="w-4 h-4 text-primary" />
+                  اتجاه الانتشار خلال الأسبوع
+                </h3>
+              </div>
+              <div className="h-64 w-full -mx-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart
+                    data={areaData}
+                    margin={{ top: 8, right: 8, left: 0, bottom: 8 }}
+                  >
+                    <defs>
+                      {PLATFORMS_FOR_CHART.map((p) => (
+                        <linearGradient
+                          key={p}
+                          id={`grad-${p}`}
+                          x1="0"
+                          y1="0"
+                          x2="0"
+                          y2="1"
+                        >
+                          <stop
+                            offset="0%"
+                            stopColor={PLATFORM_COLORS[p]}
+                            stopOpacity={0.4}
+                          />
+                          <stop
+                            offset="100%"
+                            stopColor={PLATFORM_COLORS[p]}
+                            stopOpacity={0.05}
+                          />
+                        </linearGradient>
+                      ))}
+                    </defs>
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="currentColor"
+                      className="text-border"
+                      vertical={false}
+                    />
+                    <XAxis
+                      dataKey="day"
+                      tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                      tickLine={false}
+                      axisLine={false}
+                      interval={0}
+                    />
+                    <YAxis
+                      tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
+                      tickLine={false}
+                      axisLine={false}
+                      width={38}
+                      tickFormatter={(v: number) => formatNumber(v)}
+                    />
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend
+                      wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+                      iconType="circle"
+                      iconSize={8}
+                    />
+                    {PLATFORMS_FOR_CHART.map((p) => (
+                      <Area
+                        key={p}
+                        type="monotone"
+                        dataKey={p}
+                        name={PLATFORMS[p].arabicName}
+                        stackId="1"
+                        stroke={PLATFORM_COLORS[p]}
+                        strokeWidth={2}
+                        fill={`url(#grad-${p})`}
+                        dot={false}
+                        activeDot={{ r: 3, strokeWidth: 0 }}
+                      />
+                    ))}
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            {/* Chart 3 — Donut: trends distribution per platform */}
+            <Card className="p-4 sm:p-5 gap-3">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm flex items-center gap-1.5">
+                  <BarChart3 className="w-4 h-4 text-primary" />
+                  توزيع الترندات حسب المنصة
+                </h3>
+              </div>
+              <div className="h-64 w-full -mx-1 relative">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="48%"
+                      innerRadius={55}
+                      outerRadius={85}
+                      paddingAngle={2}
+                      stroke="none"
+                    >
+                      {pieData.map((d) => (
+                        <Cell key={d.platform} fill={d.color} />
+                      ))}
+                      <Label
+                        content={(props: any) => {
+                          const { cx, cy } = props.viewBox ?? {}
+                          if (cx == null || cy == null) return null
+                          return (
+                            <g>
+                              <text
+                                x={cx}
+                                y={cy - 4}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                style={{
+                                  fontSize: 22,
+                                  fontWeight: 800,
+                                  fill: "var(--foreground)",
+                                }}
+                              >
+                                {pieTotal}
+                              </text>
+                              <text
+                                x={cx}
+                                y={cy + 14}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                style={{
+                                  fontSize: 10,
+                                  fill: "var(--muted-foreground)",
+                                }}
+                              >
+                                إجمالي الترندات
+                              </text>
+                            </g>
+                          )
+                        }}
+                      />
+                    </Pie>
+                    <Tooltip content={<ChartTooltip />} />
+                    <Legend
+                      wrapperStyle={{ fontSize: 11, paddingTop: 4 }}
+                      iconType="circle"
+                      iconSize={8}
+                      formatter={(value: string, entry: any) => {
+                        const total = pieTotal || 1
+                        const pct = Math.round(
+                          ((entry?.payload?.value ?? 0) / total) * 100
+                        )
+                        return (
+                          <span
+                            style={{ color: "var(--foreground)" }}
+                            className="text-[11px]"
+                          >
+                            {value} · {entry?.payload?.value ?? 0} ({pct}%)
+                          </span>
+                        )
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+          </div>
+        )}
       </section>
 
       {/* Trending Keywords */}

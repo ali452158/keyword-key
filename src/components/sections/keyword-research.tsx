@@ -15,6 +15,7 @@ import {
   Sparkles,
   AlertCircle,
   Compass,
+  Trophy,
 } from "lucide-react"
 import {
   AreaChart,
@@ -104,6 +105,210 @@ interface KeywordDetailCardProps {
   onGenerate: (keyword: string) => void
 }
 
+/**
+ * Performance score for a platform keyword result.
+ * Higher = better opportunity. Volume is the primary driver,
+ * growth adds positively, difficulty & competition penalize.
+ */
+function computePlatformScore(d: KeywordDetail): number {
+  return (
+    d.searchVolume / 1000 +
+    d.growth * 10 -
+    d.difficulty * 5 -
+    d.competitionScore * 3
+  )
+}
+
+interface BestPlatformsSectionProps {
+  results: KeywordDetail[]
+  onSelectPlatform: (platform: Platform) => void
+}
+
+function BestPlatformsSection({
+  results,
+  onSelectPlatform,
+}: BestPlatformsSectionProps) {
+  const ranked = React.useMemo(() => {
+    return [...results]
+      .map((d) => ({ detail: d, score: computePlatformScore(d) }))
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 4)
+  }, [results])
+
+  if (ranked.length === 0) return null
+
+  const top = ranked[0].detail
+  const topPlatformName =
+    PLATFORM_LIST.find((p) => p.id === top.platform)?.arabicName ||
+    top.platform
+
+  return (
+    <section
+      className="space-y-3"
+      aria-label="أفضل المنصات لهذه الكلمة"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="font-display text-lg font-bold flex items-center gap-2">
+          <span className="w-7 h-7 rounded-lg bg-gradient-brand text-white flex items-center justify-center shadow-brand">
+            <Trophy className="w-4 h-4" />
+          </span>
+          أفضل المنصات لهذه الكلمة
+        </h3>
+        <span className="text-xs text-muted-foreground">
+          ترتيب {ranked.length} منصات
+        </span>
+      </div>
+
+      {/* Ranking cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {ranked.map((entry, idx) => {
+          const d = entry.detail
+          const isTop = idx === 0
+          const isGrowthPositive = d.growth >= 0
+          return (
+            <Card
+              key={`${d.keyword}-${d.platform}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => onSelectPlatform(d.platform)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault()
+                  onSelectPlatform(d.platform)
+                }
+              }}
+              aria-label={`المرتبة ${idx + 1}: ${
+                PLATFORM_LIST.find((p) => p.id === d.platform)?.arabicName ||
+                d.platform
+              }، حجم البحث ${formatNumber(d.searchVolume)}، النمو ${formatGrowth(
+                d.growth
+              )}`}
+              className={cn(
+                "p-4 cursor-pointer transition-all hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                isTop
+                  ? "bg-gradient-brand text-white border-transparent shadow-brand-lg"
+                  : "bg-card hover:shadow-brand"
+              )}
+            >
+              {/* Top row: rank number + medal/badge */}
+              <div className="flex items-center justify-between mb-3">
+                <span
+                  className={cn(
+                    "font-display text-2xl font-extrabold leading-none",
+                    isTop ? "text-white/90" : "text-primary"
+                  )}
+                >
+                  #{idx + 1}
+                </span>
+                {isTop ? (
+                  <Badge className="bg-white/20 text-white border-transparent backdrop-blur-sm">
+                    <Trophy className="w-3 h-3 ml-1" />
+                    الأفضل
+                  </Badge>
+                ) : idx === 1 ? (
+                  <span className="text-xl leading-none" aria-hidden>
+                    🥈
+                  </span>
+                ) : idx === 2 ? (
+                  <span className="text-xl leading-none" aria-hidden>
+                    🥉
+                  </span>
+                ) : (
+                  <span className="w-6 h-6 rounded-full bg-muted text-muted-foreground flex items-center justify-center text-[10px] font-bold">
+                    {idx + 1}
+                  </span>
+                )}
+              </div>
+
+              {/* Platform badge */}
+              <PlatformBadge platform={d.platform} size="md" showName />
+
+              {/* Stats */}
+              <div className="mt-3 space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span
+                    className={isTop ? "text-white/80" : "text-muted-foreground"}
+                  >
+                    حجم البحث
+                  </span>
+                  <span
+                    className={cn(
+                      "font-bold",
+                      isTop ? "text-white" : "text-foreground"
+                    )}
+                  >
+                    {formatNumber(d.searchVolume)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span
+                    className={isTop ? "text-white/80" : "text-muted-foreground"}
+                  >
+                    النمو
+                  </span>
+                  <span
+                    className={cn(
+                      "font-bold inline-flex items-center gap-0.5",
+                      isTop
+                        ? "text-white"
+                        : isGrowthPositive
+                        ? "text-emerald-600"
+                        : "text-rose-600"
+                    )}
+                  >
+                    {isGrowthPositive ? (
+                      <TrendingUp className="w-3 h-3" />
+                    ) : (
+                      <TrendingDown className="w-3 h-3" />
+                    )}
+                    {formatGrowth(d.growth)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span
+                    className={isTop ? "text-white/80" : "text-muted-foreground"}
+                  >
+                    المنافسة
+                  </span>
+                  <span
+                    className={cn(
+                      "font-bold",
+                      isTop ? "text-white" : "text-foreground"
+                    )}
+                  >
+                    {competitionLabel(d.competition)}
+                  </span>
+                </div>
+              </div>
+            </Card>
+          )
+        })}
+      </div>
+
+      {/* Recommendation banner */}
+      <div className="bg-gradient-brand-soft border border-primary/20 rounded-xl p-3 text-sm flex items-start gap-2">
+        <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+        <p className="text-foreground leading-relaxed">
+          ننصح بالبدء بـ{" "}
+          <strong className="text-gradient-brand font-bold">
+            {topPlatformName}
+          </strong>{" "}
+          لأنها تحقق أعلى حجم بحث ({" "}
+          <strong className="text-gradient-brand font-bold">
+            {formatNumber(top.searchVolume)}
+          </strong>
+          ) مع منافسة{" "}
+          <strong className="text-gradient-brand font-bold">
+            {competitionLabel(top.competition)}
+          </strong>
+          .
+        </p>
+      </div>
+    </section>
+  )
+}
+
 function KeywordDetailCard({
   detail,
   expanded,
@@ -115,7 +320,10 @@ function KeywordDetailCard({
   const cardId = `${detail.keyword}-${detail.platform}`
 
   return (
-    <Card className="overflow-hidden p-0 gap-0 hover:shadow-brand transition-shadow">
+    <Card
+      data-result-card={detail.platform}
+      className="overflow-hidden p-0 gap-0 hover:shadow-brand transition-shadow scroll-mt-24"
+    >
       {/* Header (clickable) */}
       <Collapsible open={expanded} onOpenChange={onToggle}>
         <CollapsibleTrigger asChild>
@@ -448,6 +656,27 @@ export function KeywordResearch({
     setExpandedId((prev) => (prev === id ? null : id))
   }
 
+  // Expand the matching platform's card and scroll it into view.
+  const handleSelectPlatform = React.useCallback(
+    (platform: Platform) => {
+      const match = results.find((r) => r.platform === platform)
+      if (!match) return
+      const id = `${match.keyword}-${match.platform}`
+      setExpandedId(id)
+      // Defer scroll until after the collapsible opens
+      requestAnimationFrame(() => {
+        if (typeof document === "undefined") return
+        const el = document.querySelector(
+          `[data-result-card="${platform}"]`
+        )
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" })
+        }
+      })
+    },
+    [results]
+  )
+
   return (
     <div className="space-y-6">
       {/* Section header */}
@@ -557,6 +786,10 @@ export function KeywordResearch({
         />
       ) : (
         <>
+          <BestPlatformsSection
+            results={results}
+            onSelectPlatform={handleSelectPlatform}
+          />
           <div className="flex items-center justify-between">
             <p className="text-sm text-muted-foreground">
               عرض{" "}

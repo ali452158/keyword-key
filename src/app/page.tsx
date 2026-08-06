@@ -7,6 +7,7 @@ import { KeywordResearch } from "@/components/sections/keyword-research"
 import { Trends } from "@/components/sections/trends"
 import { CompetitorAnalysis } from "@/components/sections/competitor-analysis"
 import { ContentGenerator } from "@/components/sections/content-generator"
+import { SocialIntegration } from "@/components/sections/social-integration"
 import { KeyRound, Github, Twitter, Linkedin, Heart } from "lucide-react"
 
 type TabId =
@@ -15,6 +16,7 @@ type TabId =
   | "trends"
   | "competitor"
   | "generator"
+  | "integration"
 
 export default function Home() {
   const [activeTab, setActiveTab] = React.useState<TabId>("dashboard")
@@ -66,7 +68,11 @@ export default function Home() {
             <ContentGenerator
               key={generatorKeyword || "default"}
               initialKeyword={generatorKeyword}
+              onNavigate={handleNavigate}
             />
+          )}
+          {activeTab === "integration" && (
+            <SocialIntegration onNavigate={handleNavigate} />
           )}
         </div>
       </main>
