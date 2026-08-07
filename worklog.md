@@ -800,3 +800,47 @@ Stage Summary:
 - Passwords hashed with bcrypt (10 rounds), stored in SQLite User table
 - Cleaned up test user from DB after verification
 - Lint passes cleanly
+
+---
+Task ID: 12
+Agent: Main (orchestrator)
+Task: Change auth behavior — main page (dashboard) must be fully visible/browseable for everyone; auth dialog should only appear when user clicks on a specific service (other tabs, CTA buttons, keyword cards).
+
+Work Log:
+- Rewrote `src/components/auth-gate.tsx`:
+  - Removed blur overlay, locked card, and "first click anywhere" document listener
+  - Now renders children normally (full visibility) at all times
+  - Exposes `useAuth()` context with `{ isAuthenticated, requireAuth(action), openAuthDialog }`
+  - `requireAuth(action)`: if authed runs action immediately; if unauthed, stores pending action + opens dialog; on successful login, runs the pending action (deferred via setTimeout)
+  - `openAuthDialog()`: opens dialog without a pending action (used by header Login button)
+  - Dialog is now fully dismissible (close button, outside click, escape all work); closing just cancels the pending action and the visitor keeps browsing
+- Updated `src/components/auth-dialog.tsx`:
+  - Re-enabled the default close button via custom X button in brand header (calls onDismissed)
+  - Removed `onPointerDownOutside/onEscapeKeyDown/onInteractOutside` preventDefault blocks (dialog is now dismissible)
+  - Kept `showCloseButton={false}` to use only the custom close button
+  - Added sr-only DialogHeader with DialogTitle + DialogDescription to fix Radix accessibility warning
+  - Wired `onDismissed` prop properly
+- Updated `src/app/page.tsx`:
+  - Split into `HomeContent` (inner component using `useAuth`) + default `Home` (wraps with `<AuthGate>`)
+  - `handleNavigate` and `handleTabChange` now check: if target tab is "dashboard" → allow immediately; otherwise → `requireAuth(() => performNavigate(...))`
+  - Dashboard tab is always browseable; research/trends/competitor/generator/integration/growth tabs require auth
+  - CTA buttons in dashboard hero ("ابدأ البحث الآن", "ولّد أفكار محتوى") call onNavigate → trigger auth for guests
+  - Keyword cards call onNavigate → trigger auth for guests
+- Updated `src/components/site-header.tsx`:
+  - Uses `useAuth()` to check `isAuthenticated`
+  - Shows `<UserMenu/>` (avatar dropdown with logout) when authed
+  - Shows "دخول" gradient Login button (calls `openAuthDialog`) when unauthed
+
+Stage Summary:
+- Soft-gate auth implemented per user request:
+  1. Dashboard fully visible & browseable for all visitors (no blur, no lock) ✅
+  2. Clicking any service tab (research/trends/competitor/generator/integration/growth) → auth dialog opens, stays on dashboard ✅
+  3. Clicking CTA buttons or keyword cards in dashboard → auth dialog opens ✅
+  4. Dialog is dismissible — close button / outside click / escape all work, visitor keeps browsing ✅
+  5. After successful login/register, the pending service navigation completes automatically ✅
+  6. Authenticated users navigate freely with no dialog ✅
+  7. Header shows "دخول" button for guests, avatar+logout for authed users ✅
+- Agent Browser verified all flows end-to-end
+- Fixed Radix Dialog accessibility warning (added sr-only DialogTitle/DialogDescription)
+- Lint passes cleanly
+- Cleaned up test users from DB

@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { KeyRound, Mail, Lock, User, Loader2, Sparkles } from "lucide-react"
+import { KeyRound, Mail, Lock, User, Loader2, Sparkles, X } from "lucide-react"
 
 interface AuthDialogProps {
   open: boolean
@@ -44,16 +44,29 @@ export function AuthDialog({
     >
       <DialogContent
         className="sm:max-w-md gap-0 p-0 overflow-hidden"
-        // Disable the default close button by hiding it; we manage close ourselves.
         showCloseButton={false}
-        onPointerDownOutside={(e) => e.preventDefault()}
-        onEscapeKeyDown={(e) => e.preventDefault()}
-        onInteractOutside={(e) => e.preventDefault()}
       >
+        {/* Accessibility: Radix requires a Title + Description. They are
+            visually hidden because we render a custom branded header. */}
+        <DialogHeader className="sr-only">
+          <DialogTitle>تسجيل الدخول أو إنشاء حساب</DialogTitle>
+          <DialogDescription>
+            سجّل الدخول أو أنشئ حساباً جديداً للوصول إلى جميع أدوات المنصة.
+          </DialogDescription>
+        </DialogHeader>
         {/* Brand header */}
         <div className="relative bg-gradient-brand text-white p-5 text-center overflow-hidden">
           <div className="absolute inset-0 bg-grid-pattern opacity-20" />
           <div className="absolute -top-10 -right-10 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+          {/* Close button */}
+          <button
+            type="button"
+            onClick={() => onDismissed?.()}
+            aria-label="إغلاق"
+            className="absolute top-3 left-3 z-20 w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 backdrop-blur-sm flex items-center justify-center text-white transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
           <div className="relative z-10 flex flex-col items-center gap-2">
             <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
               <KeyRound className="w-6 h-6" />

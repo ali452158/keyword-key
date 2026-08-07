@@ -3,10 +3,11 @@
 import * as React from "react"
 import Link from "next/link"
 import { useTheme } from "next-themes"
-import { Moon, Sun, KeyRound, Menu, X } from "lucide-react"
+import { Moon, Sun, KeyRound, Menu, X, LogIn } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { UserMenu } from "@/components/user-menu"
+import { useAuth } from "@/components/auth-gate"
 
 interface NavItem {
   id: string
@@ -30,6 +31,7 @@ interface SiteHeaderProps {
 
 export function SiteHeader({ activeTab, onTabChange }: SiteHeaderProps) {
   const { theme, setTheme } = useTheme()
+  const { isAuthenticated, openAuthDialog } = useAuth()
   const [mounted, setMounted] = React.useState(false)
   const [mobileOpen, setMobileOpen] = React.useState(false)
 
@@ -105,7 +107,18 @@ export function SiteHeader({ activeTab, onTabChange }: SiteHeaderProps) {
                 <Moon className="w-5 h-5" />
               )}
             </Button>
-            <UserMenu />
+            {isAuthenticated ? (
+              <UserMenu />
+            ) : (
+              <Button
+                onClick={openAuthDialog}
+                size="sm"
+                className="bg-gradient-brand text-white font-bold hover:shadow-brand-lg gap-1.5 rounded-lg"
+              >
+                <LogIn className="w-4 h-4" />
+                <span className="hidden sm:inline">دخول</span>
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"

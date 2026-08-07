@@ -15,7 +15,7 @@ import { TelegramIcon } from "@/components/telegram-icon"
 import { TikTokIcon } from "@/components/tiktok-icon"
 import { InstagramIcon } from "@/components/instagram-icon"
 import { YouTubeIcon } from "@/components/youtube-icon"
-import { AuthGate } from "@/components/auth-gate"
+import { AuthGate, useAuth } from "@/components/auth-gate"
 import { KeyRound, Heart, Send } from "lucide-react"
 
 type TabId =
@@ -27,13 +27,13 @@ type TabId =
   | "integration"
   | "growth"
 
-export default function Home() {
+function HomeContent() {
+  const { requireAuth } = useAuth()
   const [activeTab, setActiveTab] = React.useState<TabId>("dashboard")
   const [researchKeyword, setResearchKeyword] = React.useState<string>()
   const [generatorKeyword, setGeneratorKeyword] = React.useState<string>()
 
-  const handleNavigate = (tab: string, keyword?: string) => {
-    const tabId = tab as TabId
+  const performNavigate = (tabId: TabId, keyword?: string) => {
     setActiveTab(tabId)
     if (tabId === "research" && keyword) {
       setResearchKeyword(keyword)
@@ -46,51 +46,69 @@ export default function Home() {
     if (tabId !== "generator") setGeneratorKeyword(undefined)
   }
 
+  const handleNavigate = (tab: string, keyword?: string) => {
+    const tabId = tab as TabId
+    // Dashboard is always browseable. Other services require an account.
+    if (tabId === "dashboard") {
+      performNavigate(tabId, keyword)
+    } else {
+      requireAuth(() => performNavigate(tabId, keyword))
+    }
+  }
+
   const handleTabChange = (tab: string) => {
     const tabId = tab as TabId
-    setActiveTab(tabId)
-    setResearchKeyword(undefined)
-    setGeneratorKeyword(undefined)
+    if (tabId === "dashboard") {
+      performNavigate(tabId)
+    } else {
+      requireAuth(() => performNavigate(tabId))
+    }
   }
 
   return (
+    <div className="min-h-screen flex flex-col bg-background">
+      <SiteHeader activeTab={activeTab} onTabChange={handleTabChange} />
+
+      <main className="flex-1 w-full">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+          {activeTab === "dashboard" && (
+            <Dashboard onNavigate={handleNavigate} />
+          )}
+          {activeTab === "research" && (
+            <KeywordResearch
+              key={researchKeyword || "default"}
+              initialKeyword={researchKeyword}
+              onNavigate={handleNavigate}
+            />
+          )}
+          {activeTab === "trends" && <Trends onNavigate={handleNavigate} />}
+          {activeTab === "competitor" && (
+            <CompetitorAnalysis onNavigate={handleNavigate} />
+          )}
+          {activeTab === "generator" && (
+            <ContentGenerator
+              key={generatorKeyword || "default"}
+              initialKeyword={generatorKeyword}
+              onNavigate={handleNavigate}
+            />
+          )}
+          {activeTab === "integration" && (
+            <SocialIntegration onNavigate={handleNavigate} />
+          )}
+          {activeTab === "growth" && <GrowthTools />}
+        </div>
+      </main>
+
+      <Footer />
+      <FloatingTelegram />
+    </div>
+  )
+}
+
+export default function Home() {
+  return (
     <AuthGate>
-      <div className="min-h-screen flex flex-col bg-background">
-        <SiteHeader activeTab={activeTab} onTabChange={handleTabChange} />
-
-        <main className="flex-1 w-full">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-            {activeTab === "dashboard" && (
-              <Dashboard onNavigate={handleNavigate} />
-            )}
-            {activeTab === "research" && (
-              <KeywordResearch
-                key={researchKeyword || "default"}
-                initialKeyword={researchKeyword}
-                onNavigate={handleNavigate}
-              />
-            )}
-            {activeTab === "trends" && <Trends onNavigate={handleNavigate} />}
-            {activeTab === "competitor" && (
-              <CompetitorAnalysis onNavigate={handleNavigate} />
-            )}
-            {activeTab === "generator" && (
-              <ContentGenerator
-                key={generatorKeyword || "default"}
-                initialKeyword={generatorKeyword}
-                onNavigate={handleNavigate}
-              />
-            )}
-            {activeTab === "integration" && (
-              <SocialIntegration onNavigate={handleNavigate} />
-            )}
-            {activeTab === "growth" && <GrowthTools />}
-          </div>
-        </main>
-
-        <Footer />
-        <FloatingTelegram />
-      </div>
+      <HomeContent />
     </AuthGate>
   )
 }
