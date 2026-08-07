@@ -1056,3 +1056,38 @@ Stage Summary:
   2. Hostinger VPS (self-hosted) — see HOSTINGER-DEPLOY.md
 - Automated script handles full VPS setup in one command
 - All files pushed to https://github.com/ali452158/keyword-key
+
+---
+Task ID: hostinger-deploy-live
+Agent: Main (orchestrator)
+Task: Deploy Keyword Key to Hostinger VPS (76.13.40.219)
+
+Work Log:
+- Connected to VPS via SSH (ssh2 Node.js library, password auth)
+- Server: Ubuntu 26.04 LTS, 7.7GB RAM, 96GB disk (77% used)
+- Installed/verified: Node.js v20.20.2, Bun 1.3.14, PM2 7.0.3, Nginx 1.28.3, PostgreSQL 18.4, Certbot 4.0.0
+- Created PostgreSQL database 'keywordkey' with secure random password
+- Cloned repo from GitHub to /var/www/keyword-key
+- Created .env with DATABASE_URL, NEXTAUTH_URL, NEXTAUTH_SECRET
+- Installed 829 npm packages with Bun (40s)
+- Generated Prisma client + pushed schema to DB
+- Built Next.js app with standalone output (23.9s compile, 154MB standalone)
+- Port 3000 conflict: existing Docker container 'alfa-reports' (reportsalfa.com)
+- Switched keyword-key to port 3001, updated ecosystem.config.cjs
+- Started app with PM2 (process id 3, online, 75.6MB RAM)
+- Caddy already running as reverse proxy for reportsalfa.com on port 80/443
+- Attempted to add :8080 block to Caddyfile — failed (port 8080 used by Docker 'scalper-web-server')
+- Restored original Caddyfile, restarted Caddy (reportsalfa.com preserved)
+- Opened port 3001 in UFW firewall for direct external access
+- Verified: external access http://76.13.40.219:3001 returns HTTP 200
+- Verified: homepage title correct (Arabic RTL)
+- Verified: auth register API works (created test user in PostgreSQL)
+- Verified: trending API returns real data
+
+Stage Summary:
+- Site is LIVE at http://76.13.40.219:3001
+- PM2 manages the app (auto-restart on crash, saved to startup)
+- PostgreSQL database 'keywordkey' with User table
+- Existing services (reportsalfa.com, alfa-bot) untouched and still working
+- No domain configured yet — using IP:3001 directly
+- For custom domain: add block to /etc/caddy/Caddyfile + reload caddy
