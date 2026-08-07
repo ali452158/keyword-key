@@ -726,3 +726,23 @@ Stage Summary:
 - All three creator links now visible: Telegram channel (FX_pulssGold), Telegram account (ali_0165), TikTok account (ali.trad011)
 - Agent Browser verification confirmed: 2 TikTok links rendered, footer aria-label present, no console errors
 - Lint passes cleanly
+
+---
+Task ID: 9
+Agent: Main (orchestrator)
+Task: Add creator's Instagram account (https://www.instagram.com/alitredr0) to the site
+
+Work Log:
+- Created `src/components/instagram-icon.tsx` — standalone InstagramIcon SVG component (camera logo, uses currentColor), reusing the same path as PlatformIcon's instagram case for visual consistency
+- Updated `src/components/creator-card.tsx`:
+  - Imported InstagramIcon
+  - Added a fourth button: Instagram account "alitredr0" with the signature Instagram gradient (orange #F58529 → pink #DD2A7B → purple #8134AF), links to https://www.instagram.com/alitredr0
+- Updated `src/app/page.tsx` footer social row:
+  - Imported InstagramIcon
+  - Added an Instagram social icon button (same gradient) next to the existing Telegram + TikTok icons, linking to https://www.instagram.com/alitredr0
+
+Stage Summary:
+- Instagram account (@alitredr0) now linked in two places: (1) prominent gradient button in the CreatorCard, (2) small gradient icon in the footer social row
+- All four creator links now visible: Telegram channel (FX_pulssGold), Telegram account (ali_0165), TikTok account (ali.trad011), Instagram account (alitredr0)
+- Agent Browser verification confirmed: 2 Instagram links rendered, footer aria-label present, all 4 creator buttons visible ("انضم لقناة تلجرام", "ali_0165", "ali.trad011", "alitredr0"), no console errors
+- Lint passes cleanly

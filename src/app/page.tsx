@@ -13,6 +13,7 @@ import { CreatorCard } from "@/components/creator-card"
 import { FloatingTelegram } from "@/components/floating-telegram"
 import { TelegramIcon } from "@/components/telegram-icon"
 import { TikTokIcon } from "@/components/tiktok-icon"
+import { InstagramIcon } from "@/components/instagram-icon"
 import { KeyRound, Heart, Send } from "lucide-react"
 
 type TabId =
@@ -145,6 +146,15 @@ function Footer() {
                 className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#25F4EE] via-[#000000] to-[#FE2C55] flex items-center justify-center text-white hover:-translate-y-0.5 transition-all"
               >
                 <TikTokIcon size={16} className="text-white" />
+              </a>
+              <a
+                href="https://www.instagram.com/alitredr0"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="حساب انستجرام alitredr0"
+                className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF] flex items-center justify-center text-white hover:-translate-y-0.5 transition-all"
+              >
+                <InstagramIcon size={16} className="text-white" />
               </a>
             </div>
           </div>

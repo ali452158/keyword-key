@@ -3,6 +3,7 @@ import Image from "next/image"
 import { Badge } from "@/components/ui/badge"
 import { TelegramIcon } from "@/components/telegram-icon"
 import { TikTokIcon } from "@/components/tiktok-icon"
+import { InstagramIcon } from "@/components/instagram-icon"
 import { User, AtSign, ArrowUpLeft } from "lucide-react"
 
 /**
@@ -87,6 +88,17 @@ export function CreatorCard() {
             >
               <TikTokIcon size={16} className="text-white" />
               ali.trad011
+            </a>
+
+            {/* Instagram account — secondary */}
+            <a
+              href="https://www.instagram.com/alitredr0"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group inline-flex items-center justify-center gap-2 rounded-xl text-white font-semibold text-sm px-4 py-2.5 bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF] hover:-translate-y-0.5 hover:shadow-lg transition-all"
+            >
+              <InstagramIcon size={16} className="text-white" />
+              alitredr0
             </a>
           </div>
         </div>
