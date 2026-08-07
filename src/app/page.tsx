@@ -12,6 +12,7 @@ import { GrowthTools } from "@/components/sections/growth-tools"
 import { CreatorCard } from "@/components/creator-card"
 import { FloatingTelegram } from "@/components/floating-telegram"
 import { TelegramIcon } from "@/components/telegram-icon"
+import { TikTokIcon } from "@/components/tiktok-icon"
 import { KeyRound, Heart, Send } from "lucide-react"
 
 type TabId =
@@ -135,6 +136,15 @@ function Footer() {
                 className="w-9 h-9 rounded-lg bg-secondary flex items-center justify-center text-muted-foreground hover:text-primary hover:bg-accent transition-colors"
               >
                 <Send className="w-4 h-4" />
+              </a>
+              <a
+                href="https://www.tiktok.com/@ali.trad011"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="حساب تيك توك ali.trad011"
+                className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#25F4EE] via-[#000000] to-[#FE2C55] flex items-center justify-center text-white hover:-translate-y-0.5 transition-all"
+              >
+                <TikTokIcon size={16} className="text-white" />
               </a>
             </div>
           </div>

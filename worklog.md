@@ -705,3 +705,24 @@ Stage Summary:
 - Creator branding fully integrated: profile image, name, and both Telegram links (account + channel) visible in footer + floating button
 - Agent Browser verification confirmed: image loads (naturalWidth 111), name "ali tredr" present, 3 channel links + 2 account links rendered, floating button present, no console errors
 - Lint passes cleanly
+
+---
+Task ID: 8
+Agent: Main (orchestrator)
+Task: Add creator's TikTok account (https://www.tiktok.com/@ali.trad011) to the site
+
+Work Log:
+- Created `src/components/tiktok-icon.tsx` — standalone TikTokIcon SVG component (musical-note logo, uses currentColor), reusing the same path as PlatformIcon's tiktok case for visual consistency
+- Updated `src/components/creator-card.tsx`:
+  - Imported TikTokIcon
+  - Added `flex-wrap` to the action buttons row so it wraps gracefully on narrow screens
+  - Added a third button: TikTok account "ali.trad011" with the signature TikTok gradient (cyan #25F4EE → black → red #FE2C55), links to https://www.tiktok.com/@ali.trad011
+- Updated `src/app/page.tsx` footer social row:
+  - Imported TikTokIcon
+  - Added a TikTok social icon button (same gradient) next to the existing Telegram channel + Telegram account icons, linking to https://www.tiktok.com/@ali.trad011
+
+Stage Summary:
+- TikTok account (@ali.trad011) now linked in two places: (1) prominent gradient button in the CreatorCard, (2) small gradient icon in the footer social row alongside Telegram
+- All three creator links now visible: Telegram channel (FX_pulssGold), Telegram account (ali_0165), TikTok account (ali.trad011)
+- Agent Browser verification confirmed: 2 TikTok links rendered, footer aria-label present, no console errors
+- Lint passes cleanly

@@ -2,6 +2,7 @@ import * as React from "react"
 import Image from "next/image"
 import { Badge } from "@/components/ui/badge"
 import { TelegramIcon } from "@/components/telegram-icon"
+import { TikTokIcon } from "@/components/tiktok-icon"
 import { User, AtSign, ArrowUpLeft } from "lucide-react"
 
 /**
@@ -53,7 +54,7 @@ export function CreatorCard() {
           </p>
 
           {/* Action buttons */}
-          <div className="flex flex-col sm:flex-row gap-2.5">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-2.5">
             {/* Telegram channel — primary */}
             <a
               href="https://t.me/FX_pulssGold"
@@ -75,6 +76,17 @@ export function CreatorCard() {
             >
               <AtSign className="w-3.5 h-3.5" />
               ali_0165
+            </a>
+
+            {/* TikTok account — secondary */}
+            <a
+              href="https://www.tiktok.com/@ali.trad011"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group inline-flex items-center justify-center gap-2 rounded-xl text-white font-semibold text-sm px-4 py-2.5 bg-gradient-to-br from-[#25F4EE] via-[#000000] to-[#FE2C55] hover:-translate-y-0.5 hover:shadow-lg transition-all"
+            >
+              <TikTokIcon size={16} className="text-white" />
+              ali.trad011
             </a>
           </div>
         </div>
