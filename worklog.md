@@ -746,3 +746,24 @@ Stage Summary:
 - All four creator links now visible: Telegram channel (FX_pulssGold), Telegram account (ali_0165), TikTok account (ali.trad011), Instagram account (alitredr0)
 - Agent Browser verification confirmed: 2 Instagram links rendered, footer aria-label present, all 4 creator buttons visible ("انضم لقناة تلجرام", "ali_0165", "ali.trad011", "alitredr0"), no console errors
 - Lint passes cleanly
+
+---
+Task ID: 10
+Agent: Main (orchestrator)
+Task: Add creator's YouTube channel (https://www.youtube.com/@ali.c.u) to the site
+
+Work Log:
+- Created `src/components/youtube-icon.tsx` — standalone YouTubeIcon SVG component (play-button logo, uses currentColor), reusing the same path as PlatformIcon's youtube case for visual consistency
+- Updated `src/components/creator-card.tsx`:
+  - Imported YouTubeIcon
+  - Added a fifth button: YouTube channel "ali.c.u" with the signature YouTube red gradient (#FF0000 → #CC0000), links to https://www.youtube.com/@ali.c.u
+- Updated `src/app/page.tsx` footer social row:
+  - Imported YouTubeIcon
+  - Added a YouTube social icon button (same red gradient) next to the existing Telegram + TikTok + Instagram icons, linking to https://www.youtube.com/@ali.c.u
+
+Stage Summary:
+- YouTube channel (@ali.c.u) now linked in two places: (1) prominent red gradient button in the CreatorCard, (2) small red gradient icon in the footer social row
+- All five creator links now visible: Telegram channel (FX_pulssGold), Telegram account (ali_0165), TikTok account (ali.trad011), Instagram account (alitredr0), YouTube channel (ali.c.u)
+- Agent Browser verification confirmed: 2 YouTube links rendered, footer aria-label present, all 5 creator buttons visible ("انضم لقناة تلجرام", "ali_0165", "ali.trad011", "alitredr0", "ali.c.u"), no console errors
+- Lint passes cleanly
+- All four supported platforms (TikTok, YouTube, Instagram, Facebook) now represented in the creator's social links — creator has presence on 3 of them plus Telegram

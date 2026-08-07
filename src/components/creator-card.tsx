@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge"
 import { TelegramIcon } from "@/components/telegram-icon"
 import { TikTokIcon } from "@/components/tiktok-icon"
 import { InstagramIcon } from "@/components/instagram-icon"
+import { YouTubeIcon } from "@/components/youtube-icon"
 import { User, AtSign, ArrowUpLeft } from "lucide-react"
 
 /**
@@ -99,6 +100,17 @@ export function CreatorCard() {
             >
               <InstagramIcon size={16} className="text-white" />
               alitredr0
+            </a>
+
+            {/* YouTube channel — secondary */}
+            <a
+              href="https://www.youtube.com/@ali.c.u"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group inline-flex items-center justify-center gap-2 rounded-xl text-white font-semibold text-sm px-4 py-2.5 bg-gradient-to-br from-[#FF0000] to-[#CC0000] hover:-translate-y-0.5 hover:shadow-lg transition-all"
+            >
+              <YouTubeIcon size={16} className="text-white" />
+              ali.c.u
             </a>
           </div>
         </div>

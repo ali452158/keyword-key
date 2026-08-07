@@ -14,6 +14,7 @@ import { FloatingTelegram } from "@/components/floating-telegram"
 import { TelegramIcon } from "@/components/telegram-icon"
 import { TikTokIcon } from "@/components/tiktok-icon"
 import { InstagramIcon } from "@/components/instagram-icon"
+import { YouTubeIcon } from "@/components/youtube-icon"
 import { KeyRound, Heart, Send } from "lucide-react"
 
 type TabId =
@@ -155,6 +156,15 @@ function Footer() {
                 className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#F58529] via-[#DD2A7B] to-[#8134AF] flex items-center justify-center text-white hover:-translate-y-0.5 transition-all"
               >
                 <InstagramIcon size={16} className="text-white" />
+              </a>
+              <a
+                href="https://www.youtube.com/@ali.c.u"
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label="قناة يوتيوب ali.c.u"
+                className="w-9 h-9 rounded-lg bg-gradient-to-br from-[#FF0000] to-[#CC0000] flex items-center justify-center text-white hover:-translate-y-0.5 transition-all"
+              >
+                <YouTubeIcon size={16} className="text-white" />
               </a>
             </div>
           </div>
