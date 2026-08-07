@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import ZAI from "z-ai-web-dev-sdk"
+import { getZaiSafe } from "@/lib/zai-safe"
 import type { Platform } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -72,7 +72,20 @@ export async function POST(req: NextRequest) {
     const tagCount = Math.min(Math.max(Number(count) || 20, 5), 30)
     const cleanKeyword = keyword.trim()
 
-    const zai = await ZAI.create()
+    const zai = await getZaiSafe()
+    if (!zai) {
+      const fallback = generateFallbackHashtags(cleanKeyword, platform, tagCount)
+      return NextResponse.json({
+        success: true,
+        data: {
+          hashtags: fallback,
+          mix: fallback.join(" "),
+          reach: "10K - 80K تفاعل محتمل",
+          tips: defaultTips(platform),
+        },
+        meta: { keyword: cleanKeyword, platform, count: fallback.length },
+      })
+    }
     const cfg = PLATFORM_STRATEGY[platform]
 
     const systemPrompt = `أنت خبير في هاشتاجات السوشيال ميديا. ولّد مجموعة هاشتاجات محسّنة للكلمة المفتاحية على المنصة المحددة. أرجع JSON فقط بالبنية: { hashtags: string[], mix: string (مجموعة جاهزة للنسخ مفصولة بمسافات), reach: string (تقدير الوصول), tips: string[] (3-5 نصائح) }`

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+  "buildCommand": "next build",
+  "installCommand": "bun install",
+  "devCommand": "next dev",
+  "functions": {
+    "src/app/api/competitor/analyze/route.ts": { "maxDuration": 60 },
+    "src/app/api/content/generate/route.ts": { "maxDuration": 60 },
+    "src/app/api/tools/hashtags/route.ts": { "maxDuration": 60 },
+    "src/app/api/tools/title-analyzer/route.ts": { "maxDuration": 60 },
+    "src/app/api/tools/script/route.ts": { "maxDuration": 60 },
+    "src/app/api/integration/analyze/route.ts": { "maxDuration": 60 },
+    "src/app/api/keywords/search/route.ts": { "maxDuration": 60 },
+    "src/app/api/trending/route.ts": { "maxDuration": 60 },
+    "src/app/api/stats/route.ts": { "maxDuration": 60 }
+  }
+}

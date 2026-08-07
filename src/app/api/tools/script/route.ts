@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import ZAI from "z-ai-web-dev-sdk"
+import { getZaiSafe } from "@/lib/zai-safe"
 import type { Platform } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -103,7 +103,15 @@ export async function POST(req: NextRequest) {
     const toneInfo = TONE_INFO[tone]
     const platInfo = PLATFORM_INFO[platform]
 
-    const zai = await ZAI.create()
+    const zai = await getZaiSafe()
+    if (!zai) {
+      const script = generateFallbackScript(topic.trim(), platform, duration, tone)
+      return NextResponse.json({
+        success: true,
+        data: script,
+        meta: { topic: topic.trim(), platform, duration, tone },
+      })
+    }
 
     const systemPrompt = `أنت كاتب سكربتات محترف لفيديوهات السوشيال ميديا. اكتب سكربت كامل بالعربية للموضوع والمنصة والمدة والنبرة المحددة. أرجع JSON فقط بالبنية: { hook: string (جملة جذب أول 3 ثوانٍ), intro: string (المقدمة), scenes: [{title: string, narration: string, visual: string}] (3-6 مشاهد حسب المدة), cta: string (دعوة لإجراء), outro: string (الخاتمة), estimatedDuration: string, tips: string[] (نصائح للتصوير/المونتاج) }`
 

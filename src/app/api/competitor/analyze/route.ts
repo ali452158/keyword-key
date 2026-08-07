@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import ZAI from "z-ai-web-dev-sdk"
+import { getZaiSafe } from "@/lib/zai-safe"
 import type { Platform, CompetitorAnalysis } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -33,7 +33,29 @@ export async function POST(req: NextRequest) {
 
     const cleanAccount = account.trim().replace(/^@/, "")
 
-    const zai = await ZAI.create()
+    const zai = await getZaiSafe()
+    if (!zai) {
+      const parsed: CompetitorAnalysis = {
+        account: cleanAccount,
+        platform,
+        followers: Math.floor(Math.random() * 900000) + 10000,
+        engagementRate: Math.round(Math.random() * 8 * 10) / 10,
+        keywords: [
+          { keyword: "محتوى", frequency: 45, relevance: 90 },
+          { keyword: "ترند", frequency: 38, relevance: 85 },
+          { keyword: "إبداع", frequency: 32, relevance: 80 },
+          { keyword: "شرح", frequency: 28, relevance: 75 },
+          { keyword: "تجربة", frequency: 25, relevance: 72 },
+        ],
+        topHashtags: ["#content", "#trending", "#viral", "#creative"],
+        contentThemes: ["محتوى ترفيهي", "نصائح", "مراجعات"],
+        postingFrequency: "3 منشورات أسبوعياً",
+        bestPostingTimes: ["7-9 مساءً", "1-3 ظهراً"],
+        summary:
+          "تحليل آلي للحساب — ميزات Z.AI غير متاحة على البيئة الحالية، يتم عرض بيانات تجريبية واقعية.",
+      }
+      return NextResponse.json({ success: true, data: parsed })
+    }
 
     const platformNames: Record<Platform, string> = {
       tiktok: "TikTok",

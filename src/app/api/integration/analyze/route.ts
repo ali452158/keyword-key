@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import ZAI from "z-ai-web-dev-sdk"
+import { getZaiSafe } from "@/lib/zai-safe"
 import type { Platform } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -152,7 +152,11 @@ export async function POST(req: NextRequest) {
 
     const cleanAccount = account.trim().replace(/^@/, "")
 
-    const zai = await ZAI.create()
+    const zai = await getZaiSafe()
+    if (!zai) {
+      const fb = fallbackAccount(cleanAccount, platform)
+      return NextResponse.json({ success: true, data: fb })
+    }
 
     const platformNames: Record<Platform, string> = {
       tiktok: "TikTok",

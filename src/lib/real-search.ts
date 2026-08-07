@@ -1,15 +1,17 @@
 import ZAI from "z-ai-web-dev-sdk"
+import { getZaiSafe } from "@/lib/zai-safe"
 import type { Platform } from "@/lib/types"
 
 /* ------------------------------------------------------------------ */
 /* Singleton ZAI instance                                              */
 /* ------------------------------------------------------------------ */
 
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null
+type ZaiInstance = Awaited<ReturnType<typeof ZAI.create>>
+let zaiInstance: ZaiInstance | null = null
 
-async function getZai() {
+async function getZai(): Promise<ZaiInstance | null> {
   if (!zaiInstance) {
-    zaiInstance = await ZAI.create()
+    zaiInstance = await getZaiSafe()
   }
   return zaiInstance
 }
@@ -158,6 +160,7 @@ export async function fetchRealTrends(
   }
 
   const zai = await getZai()
+  if (!zai) return []
   const platforms: Platform[] =
     platform === "all"
       ? ["tiktok", "youtube", "instagram", "facebook"]
@@ -281,6 +284,7 @@ export async function fetchRealKeywordInsights(
   if (cached) return cached
 
   const zai = await getZai()
+  if (!zai) return null
   const platforms: Platform[] = platform
     ? [platform]
     : ["tiktok", "youtube", "instagram"]

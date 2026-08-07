@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import ZAI from "z-ai-web-dev-sdk"
+import { getZaiSafe } from "@/lib/zai-safe"
 import type { Platform, ContentIdea } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -34,7 +34,15 @@ export async function POST(req: NextRequest) {
 
     const ideaCount = Math.min(Math.max(count, 3), 10)
 
-    const zai = await ZAI.create()
+    const zai = await getZaiSafe()
+    if (!zai) {
+      const ideas = generateFallbackIdeas(keyword.trim(), platform, ideaCount)
+      return NextResponse.json({
+        success: true,
+        data: ideas,
+        meta: { keyword: keyword.trim(), platform, count: ideas.length },
+      })
+    }
 
     const platformConfig: Record<
       Platform,

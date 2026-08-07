@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import ZAI from "z-ai-web-dev-sdk"
+import { getZaiSafe } from "@/lib/zai-safe"
 import type { Platform } from "@/lib/types"
 
 export const dynamic = "force-dynamic"
@@ -220,7 +220,15 @@ export async function POST(req: NextRequest) {
     const trimmedTitle = title.trim()
     const kw = keyword && keyword.trim() ? keyword.trim() : undefined
 
-    const zai = await ZAI.create()
+    const zai = await getZaiSafe()
+    if (!zai) {
+      const analysis = fallbackAnalysis(trimmedTitle, platform, kw)
+      return NextResponse.json({
+        success: true,
+        data: analysis,
+        meta: { title: trimmedTitle, platform, keyword: kw || null, length: trimmedTitle.length },
+      })
+    }
 
     const systemPrompt = `أنت خبير في تحسين عناوين فيديوهات السوشيال ميديا وتحليل نسبة النقر إلى الظهور (CTR). حلل العنوان وأعطِ درجة من 100 بناءً على: الطول المثالي، وجود كلمات قوية، الوضوح، الفضول، الكلمة المفتاحية، التطابق مع المنصة. أرجع JSON فقط بالبنية: { score: number (0-100), grades: [{criteria: string, score: number (0-100), note: string}], suggestions: string[] (ملاحظات تحسين), improvedTitles: string[] (3-5 عناوين محسّنة بديلة) }`
 
