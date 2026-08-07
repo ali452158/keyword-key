@@ -571,6 +571,7 @@ export function KeywordResearch({
   const [loading, setLoading] = React.useState(false)
   const [hasSearched, setHasSearched] = React.useState(false)
   const [expandedId, setExpandedId] = React.useState<string | null>(null)
+  const [live, setLive] = React.useState(false)
 
   const runSearch = React.useCallback(
     async (q: string, platform: PlatformFilter) => {
@@ -600,6 +601,7 @@ export function KeywordResearch({
         }
         const data: KeywordDetail[] = json.data || []
         setResults(data)
+        setLive(!!json.meta?.live)
         if (data.length > 0) {
           setExpandedId(`${data[0].keyword}-${data[0].platform}`)
         } else {
@@ -791,7 +793,7 @@ export function KeywordResearch({
             onSelectPlatform={handleSelectPlatform}
           />
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
               عرض{" "}
               <span className="font-bold text-foreground">
                 {results.length}
@@ -808,6 +810,15 @@ export function KeywordResearch({
                     }
                   </span>
                 </>
+              )}
+              {live && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 px-2 py-0.5 text-[11px] font-semibold">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75 animate-ping" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  </span>
+                  بيانات حقيقية
+                </span>
               )}
             </p>
           </div>

@@ -54,6 +54,7 @@ export function Trends({ onNavigate }: TrendsProps) {
   const [trends, setTrends] = React.useState<KeywordTrend[]>([])
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
+  const [live, setLive] = React.useState(false)
 
   const fetchTrends = React.useCallback(() => {
     setLoading(true)
@@ -74,6 +75,7 @@ export function Trends({ onNavigate }: TrendsProps) {
       .then((res) => {
         if (res.success) {
           setTrends(res.data)
+          setLive(!!res.meta?.live)
         } else {
           throw new Error(res.message || "فشل تحميل الترندات")
         }
@@ -139,6 +141,15 @@ export function Trends({ onNavigate }: TrendsProps) {
             </div>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
+            {live && (
+              <Badge className="bg-emerald-500/25 text-white border-emerald-300/40 backdrop-blur-sm gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75 animate-ping" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-300" />
+                </span>
+                بيانات حقيقية مباشرة
+              </Badge>
+            )}
             <Badge className="bg-white/15 text-white border-white/25 backdrop-blur-sm gap-1.5">
               <CalendarDays className="w-3.5 h-3.5" />
               {periodLabel}

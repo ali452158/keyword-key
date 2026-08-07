@@ -32,6 +32,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { PlatformBadge } from "@/components/platform-icon"
 import { KeywordCard } from "@/components/keyword-card"
+import { LiveBadge } from "@/components/live-badge"
 import { PLATFORMS, PLATFORM_LIST } from "@/lib/platforms"
 import { formatNumber } from "@/lib/format"
 import type { Platform, KeywordTrend } from "@/lib/types"
@@ -211,6 +212,7 @@ export function Dashboard({ onNavigate }: DashboardProps) {
   const [stats, setStats] = React.useState<PlatformStat[]>([])
   const [trends, setTrends] = React.useState<KeywordTrend[]>([])
   const [loading, setLoading] = React.useState(true)
+  const [live, setLive] = React.useState(false)
   const [activePlatform, setActivePlatform] = React.useState<
     Platform | "all"
   >("all")
@@ -223,6 +225,10 @@ export function Dashboard({ onNavigate }: DashboardProps) {
       .then(([statsRes, trendsRes]) => {
         if (statsRes.success) setStats(statsRes.data.platforms)
         if (trendsRes.success) setTrends(trendsRes.data)
+        // Show "live" badge if either source reports live data
+        if (statsRes.meta?.live || trendsRes.meta?.live) {
+          setLive(true)
+        }
       })
       .finally(() => setLoading(false))
   }, [])
@@ -250,10 +256,15 @@ export function Dashboard({ onNavigate }: DashboardProps) {
         <div className="absolute -bottom-32 -right-16 w-96 h-96 bg-white/10 rounded-full blur-3xl animate-pulse-glow" />
 
         <div className="relative z-10 max-w-3xl">
-          <Badge className="mb-4 bg-white/20 text-white border-white/30 backdrop-blur-sm">
-            <Sparkles className="w-3.5 h-3.5 ml-1.5" />
-            منصة التحليل رقم 1 للسوشيال ميديا
-          </Badge>
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm">
+              <Sparkles className="w-3.5 h-3.5 ml-1.5" />
+              منصة التحليل رقم 1 للسوشيال ميديا
+            </Badge>
+            {live && (
+              <LiveBadge live={live} variant="light" />
+            )}
+          </div>
           <h1 className="font-display text-3xl sm:text-4xl lg:text-5xl font-extrabold leading-tight mb-4">
             اكتشف الكلمات المفتاحية الأكثر انتشاراً
             <br />
