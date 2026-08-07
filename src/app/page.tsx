@@ -15,6 +15,7 @@ import { TelegramIcon } from "@/components/telegram-icon"
 import { TikTokIcon } from "@/components/tiktok-icon"
 import { InstagramIcon } from "@/components/instagram-icon"
 import { YouTubeIcon } from "@/components/youtube-icon"
+import { AuthGate } from "@/components/auth-gate"
 import { KeyRound, Heart, Send } from "lucide-react"
 
 type TabId =
@@ -53,42 +54,44 @@ export default function Home() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-background">
-      <SiteHeader activeTab={activeTab} onTabChange={handleTabChange} />
+    <AuthGate>
+      <div className="min-h-screen flex flex-col bg-background">
+        <SiteHeader activeTab={activeTab} onTabChange={handleTabChange} />
 
-      <main className="flex-1 w-full">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          {activeTab === "dashboard" && (
-            <Dashboard onNavigate={handleNavigate} />
-          )}
-          {activeTab === "research" && (
-            <KeywordResearch
-              key={researchKeyword || "default"}
-              initialKeyword={researchKeyword}
-              onNavigate={handleNavigate}
-            />
-          )}
-          {activeTab === "trends" && <Trends onNavigate={handleNavigate} />}
-          {activeTab === "competitor" && (
-            <CompetitorAnalysis onNavigate={handleNavigate} />
-          )}
-          {activeTab === "generator" && (
-            <ContentGenerator
-              key={generatorKeyword || "default"}
-              initialKeyword={generatorKeyword}
-              onNavigate={handleNavigate}
-            />
-          )}
-          {activeTab === "integration" && (
-            <SocialIntegration onNavigate={handleNavigate} />
-          )}
-          {activeTab === "growth" && <GrowthTools />}
-        </div>
-      </main>
+        <main className="flex-1 w-full">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+            {activeTab === "dashboard" && (
+              <Dashboard onNavigate={handleNavigate} />
+            )}
+            {activeTab === "research" && (
+              <KeywordResearch
+                key={researchKeyword || "default"}
+                initialKeyword={researchKeyword}
+                onNavigate={handleNavigate}
+              />
+            )}
+            {activeTab === "trends" && <Trends onNavigate={handleNavigate} />}
+            {activeTab === "competitor" && (
+              <CompetitorAnalysis onNavigate={handleNavigate} />
+            )}
+            {activeTab === "generator" && (
+              <ContentGenerator
+                key={generatorKeyword || "default"}
+                initialKeyword={generatorKeyword}
+                onNavigate={handleNavigate}
+              />
+            )}
+            {activeTab === "integration" && (
+              <SocialIntegration onNavigate={handleNavigate} />
+            )}
+            {activeTab === "growth" && <GrowthTools />}
+          </div>
+        </main>
 
-      <Footer />
-      <FloatingTelegram />
-    </div>
+        <Footer />
+        <FloatingTelegram />
+      </div>
+    </AuthGate>
   )
 }
 

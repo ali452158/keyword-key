@@ -767,3 +767,36 @@ Stage Summary:
 - Agent Browser verification confirmed: 2 YouTube links rendered, footer aria-label present, all 5 creator buttons visible ("انضم لقناة تلجرام", "ali_0165", "ali.trad011", "alitredr0", "ali.c.u"), no console errors
 - Lint passes cleanly
 - All four supported platforms (TikTok, YouTube, Instagram, Facebook) now represented in the creator's social links — creator has presence on 3 of them plus Telegram
+
+---
+Task ID: 11
+Agent: Main (orchestrator)
+Task: Add mandatory authentication — any visitor must register/login before using the site. Auth dialog appears on first click anywhere in the main page.
+
+Work Log:
+- Installed `bcryptjs` + `@types/bcryptjs` for password hashing
+- Updated `prisma/schema.prisma` — added `password String` field to User model; ran `bun run db:push` to sync
+- Added NextAuth env vars to `.env`: `NEXTAUTH_URL`, `NEXTAUTH_SECRET`
+- Created `src/lib/auth.ts` — NextAuth config with CredentialsProvider (bcrypt password verification, JWT session strategy, callbacks to attach user id to token/session)
+- Created `src/app/api/auth/[...nextauth]/route.ts` — NextAuth handler (GET + POST)
+- Created `src/app/api/auth/register/route.ts` — registration endpoint with zod validation (name min 2, valid email, password min 6), duplicate-email check, bcrypt hash (10 rounds)
+- Created `src/components/auth-dialog.tsx` — AuthDialog with brand header + Tabs (login/register), each form has icon-labeled fields, loading states, error boxes; dialog blocks overlay/escape dismissal while unauthenticated (onInteractOutside/onEscapeKeyDown preventDefault, showCloseButton=false)
+- Created `src/components/auth-gate.tsx` — AuthGate: (1) loading splash while session loads, (2) authenticated → render children, (3) unauthenticated → blurred non-interactive preview of site + locked overlay card with "اضغط في أي مكان للمتابعة" + document-level `{ once: true }` click listener that opens AuthDialog on first click anywhere; re-attaches listener if user logs out
+- Created `src/components/user-menu.tsx` — header avatar dropdown (initials, email, signOut with callbackUrl "/")
+- Created `src/components/providers.tsx` — client-side SessionProvider wrapper
+- Updated `src/app/layout.tsx` — wrapped children with <Providers> (SessionProvider)
+- Updated `src/app/page.tsx` — wrapped entire page return with <AuthGate>
+- Updated `src/components/site-header.tsx` — added <UserMenu/> next to theme toggle in header actions
+
+Stage Summary:
+- Mandatory auth enforced: unauthenticated visitors see blurred site preview + locked card; first click anywhere opens the auth dialog (cannot be dismissed without authenticating)
+- Auth flows verified end-to-end with Agent Browser:
+  1. Locked overlay shows on first visit ✅
+  2. Click anywhere → auth dialog opens with login/register tabs ✅
+  3. Register (name/email/password) → account created + auto-login → dialog closes, overlay removed, user menu appears with initials ✅
+  4. Login (email/password) → validates via bcrypt → unlocks site ✅
+  5. User menu dropdown → logout → returns to locked state ✅
+- Dev log confirms full flow: providers → csrf → user SELECT → credentials callback 200 → session 200 → site data loads
+- Passwords hashed with bcrypt (10 rounds), stored in SQLite User table
+- Cleaned up test user from DB after verification
+- Lint passes cleanly

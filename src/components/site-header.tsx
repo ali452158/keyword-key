@@ -6,6 +6,7 @@ import { useTheme } from "next-themes"
 import { Moon, Sun, KeyRound, Menu, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { UserMenu } from "@/components/user-menu"
 
 interface NavItem {
   id: string
@@ -104,6 +105,7 @@ export function SiteHeader({ activeTab, onTabChange }: SiteHeaderProps) {
                 <Moon className="w-5 h-5" />
               )}
             </Button>
+            <UserMenu />
             <Button
               variant="ghost"
               size="icon"
