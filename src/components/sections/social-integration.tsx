@@ -20,6 +20,9 @@ import {
   AlertCircle,
   Zap,
   Link2,
+  BadgeCheck,
+  Database,
+  HelpCircle,
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -67,6 +70,16 @@ interface ConnectedAccount {
   recentGrowth: number
   bestContent: string
   summary: string
+  /** Where the data came from: "real" = scraped from the platform, "estimated" = AI estimate */
+  dataSource?: "real" | "estimated"
+  /** Real display name (from scraped profile) */
+  displayName?: string
+  /** Real avatar URL */
+  avatarUrl?: string
+  /** Account verified status */
+  verified?: boolean
+  /** Profile bio */
+  bio?: string
 }
 
 interface SocialIntegrationProps {
@@ -194,6 +207,7 @@ export function SocialIntegration({ onNavigate }: SocialIntegrationProps) {
         success: boolean
         data?: ConnectedAccount
         error?: string
+        meta?: { needsApiKey?: boolean; message?: string }
       }
 
       if (!json.success || !json.data) {
@@ -208,10 +222,21 @@ export function SocialIntegration({ onNavigate }: SocialIntegrationProps) {
         return [...filtered, newAccount]
       })
 
-      toast({
-        title: "تم ربط الحساب بنجاح",
-        description: `@${newAccount.account} متصل الآن`,
-      })
+      // Show appropriate toast based on data source
+      if (newAccount.dataSource === "real") {
+        toast({
+          title: "تم ربط الحساب بالبيانات الحقيقية",
+          description: `@${newAccount.account} — ${formatNumber(newAccount.followers)} متابع حقيقي`,
+        })
+      } else {
+        toast({
+          title: "تم ربط الحساب (بيانات تقديرية)",
+          description:
+            json.meta?.message ||
+            "تعذّر سحب البيانات الحقيقية — يتم عرض تقدير. أضف مفتاح RapidAPI للبيانات الحقيقية.",
+          variant: "default",
+        })
+      }
 
       closeDialog()
     } catch (err) {
@@ -446,13 +471,13 @@ export function SocialIntegration({ onNavigate }: SocialIntegrationProps) {
                 </DialogTitle>
                 <DialogDescription>
                   {dialogStep === "intro" &&
-                    "سيتم توجيهك لتسجيل الدخول إلى حسابك ومنح الصلاحيات اللازمة."}
+                    "سنسحب البيانات العامة لحسابك مباشرة من المنصة (بدون كلمة مرور)."}
                   {dialogStep === "connecting" &&
-                    "جاري الاتصال بمنصة السوشيال ميديا..."}
+                    "جاري تجهيز الاتصال الآمن..."}
                   {dialogStep === "handle" &&
                     "أدخل اسم المستخدم الخاص بالحساب الذي تريد تحليله."}
                   {dialogStep === "analyzing" &&
-                    "جاري سحب وتحليل بيانات الحساب بالذكاء الاصطناعي..."}
+                    "جاري سحب البيانات الحقيقية من المنصة..."}
                 </DialogDescription>
               </DialogHeader>
 
@@ -481,15 +506,15 @@ export function SocialIntegration({ onNavigate }: SocialIntegrationProps) {
                   <ul className="text-xs text-muted-foreground space-y-1.5">
                     <li className="flex items-start gap-2">
                       <Check className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
-                      سحب المؤشرات العامة (متابعون، مشاهدات، تفاعل)
+                      سحب المؤشرات الحقيقية (متابعون، مشاهدات، تفاعل)
                     </li>
                     <li className="flex items-start gap-2">
                       <Check className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
-                      تحليل الكلمات المفتاحية وأفضل المنشورات
+                      تحليل الكلمات المفتاحية وأفضل المنشورات الحقيقية
                     </li>
                     <li className="flex items-start gap-2">
                       <Check className="w-3.5 h-3.5 text-emerald-500 mt-0.5 shrink-0" />
-                      لا ننشر أي شيء باسمك ولا نعدّل بياناتك
+                      لا نطلب كلمة المرور — بيانات عامة فقط
                     </li>
                   </ul>
 
@@ -668,11 +693,25 @@ function AccountCard({
         {/* Header */}
         <div className="flex items-start justify-between gap-2 mb-4">
           <div className="flex items-center gap-2 min-w-0">
-            <PlatformBadge platform={account.platform} size="md" />
+            {/* Real avatar if available, otherwise platform icon */}
+            {account.avatarUrl ? (
+              <AvatarImage
+                src={account.avatarUrl}
+                alt={account.displayName || account.account}
+                fallback={<PlatformBadge platform={account.platform} size="md" />}
+              />
+            ) : (
+              <PlatformBadge platform={account.platform} size="md" />
+            )}
             <div className="min-w-0">
-              <p className="font-semibold text-sm truncate" dir="ltr">
-                @{account.account}
-              </p>
+              <div className="flex items-center gap-1">
+                <p className="font-semibold text-sm truncate" dir="ltr">
+                  {account.displayName || `@${account.account}`}
+                </p>
+                {account.verified && (
+                  <BadgeCheck className="w-3.5 h-3.5 text-sky-500 shrink-0" />
+                )}
+              </div>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <span className="relative flex">
                   <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -681,6 +720,26 @@ function AccountCard({
                 <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
                   متصل
                 </span>
+                {/* Real vs Estimated badge */}
+                {account.dataSource === "real" ? (
+                  <Badge
+                    variant="outline"
+                    className="gap-0.5 h-4 px-1.5 text-[10px] font-medium text-emerald-600 border-emerald-200 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/30 dark:border-emerald-900"
+                    title="البيانات مسحوبة مباشرة من المنصة"
+                  >
+                    <Database className="w-2.5 h-2.5" />
+                    حقيقي
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant="outline"
+                    className="gap-0.5 h-4 px-1.5 text-[10px] font-medium text-amber-600 border-amber-200 bg-amber-50 dark:text-amber-400 dark:bg-amber-950/30 dark:border-amber-900"
+                    title="تعذّر سحب البيانات الحقيقية — هذه قيم تقديرية"
+                  >
+                    <HelpCircle className="w-2.5 h-2.5" />
+                    تقديري
+                  </Badge>
+                )}
               </div>
             </div>
           </div>
@@ -801,12 +860,38 @@ function AccountCard({
         <div className="rounded-lg bg-gradient-brand-soft p-3 mb-4">
           <p className="text-xs font-medium flex items-center gap-1 mb-1">
             <Sparkles className="w-3 h-3 text-primary" />
-            ملخص ذكي
+            {account.dataSource === "real" ? "ملخص تحليلي" : "ملخص تقديري"}
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
             {account.summary}
           </p>
         </div>
+
+        {/* Setup hint for estimated data */}
+        {account.dataSource !== "real" && (
+          <div className="rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 p-2.5 mb-4">
+            <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed flex items-start gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+              <span>
+                هذه البيانات <strong>تقديرية</strong> وليست حقيقية. لسحب
+                البيانات الحقيقية من المنصة، أضف{" "}
+                <code className="px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-[10px] font-mono">
+                  RAPIDAPI_KEY
+                </code>{" "}
+                في ملف <code className="px-1 py-0.5 rounded bg-amber-100 dark:bg-amber-900/40 text-[10px] font-mono">.env</code>{" "}
+                — مفتاح مجاني من{" "}
+                <a
+                  href="https://rapidapi.com/search/tiktok"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="underline font-semibold"
+                >
+                  rapidapi.com
+                </a>
+              </span>
+            </p>
+          </div>
+        )}
 
         {/* Refresh button */}
         <Button
@@ -850,5 +935,29 @@ function Stat({
       <p className="font-bold text-sm leading-none">{value}</p>
       <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
     </div>
+  )
+}
+
+/* ---------- Avatar with fallback ---------- */
+
+function AvatarImage({
+  src,
+  alt,
+  fallback,
+}: {
+  src: string
+  alt: string
+  fallback: React.ReactNode
+}) {
+  const [errored, setErrored] = React.useState(false)
+  if (errored) return <>{fallback}</>
+  return (
+    <img
+      src={src}
+      alt={alt}
+      className="w-10 h-10 rounded-full object-cover ring-2 ring-background shadow-sm"
+      referrerPolicy="no-referrer"
+      onError={() => setErrored(true)}
+    />
   )
 }
