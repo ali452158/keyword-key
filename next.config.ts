@@ -1,8 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* Vercel auto-detects Next.js and handles output optimisation.
-     No `output: "standalone"` needed — that's for self-hosted Docker. */
+  /* Standalone output for self-hosting (Hostinger VPS, Docker, etc.).
+     Produces a minimal server in .next/standalone that doesn't need
+     node_modules — perfect for VPS deployment with PM2. */
+  output: "standalone",
   typescript: {
     ignoreBuildErrors: true,
   },

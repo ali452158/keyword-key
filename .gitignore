@@ -72,3 +72,6 @@ verify-*.png
 # Mini services (independent projects)
 /mini-services/*/node_modules/
 /mini-services/*/.next/
+# PM2 logs
+/logs/
+logs/
