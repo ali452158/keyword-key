@@ -1010,3 +1010,49 @@ Stage Summary:
 - 5 commits pushed successfully
 - .env with secrets REMOVED from repo (security)
 - Ready for Vercel deployment via GitHub integration
+
+---
+Task ID: hostinger-deploy
+Agent: Main (orchestrator)
+Task: Prepare project for Hostinger VPS deployment
+
+Work Log:
+- Switched next.config.ts back to `output: "standalone"` for self-hosting on VPS
+- Created ecosystem.config.cjs — PM2 config with auto-restart, log management, production env
+- Created nginx-keyword-key.conf — Nginx reverse proxy with:
+  - HTTP → HTTPS redirect
+  - SSL/Let's Encrypt support
+  - Static asset serving (_next/static, public)
+  - WebSocket support for future real-time features
+  - Security headers (X-Frame-Options, X-Content-Type-Options, HSTS, etc.)
+- Created deploy-hostinger.sh — automated deployment script with 8 commands:
+  - install: Node.js 20, Bun, PM2, Nginx, PostgreSQL 16, Certbot, UFW firewall
+  - database: auto-create PostgreSQL DB + user with secure password
+  - setup: clone repo, create .env, install deps, prisma push, build
+  - pm2: start/restart app with PM2
+  - nginx: configure Nginx reverse proxy
+  - ssl: install Let's Encrypt SSL via Certbot
+  - deploy: pull latest + rebuild + restart
+  - status: check all services health
+- Created HOSTINGER-DEPLOY.md — comprehensive Arabic guide covering:
+  - VPS plan selection (KVM 1 recommended)
+  - SSH connection from Windows/Mac
+  - Step-by-step deployment via automated script
+  - Domain DNS configuration
+  - SSL installation
+  - PM2/Nginx/PostgreSQL management commands
+  - Troubleshooting (502, DB errors, build failures, swap memory)
+  - Cost breakdown (~$70/year)
+  - Security hardening (SSH, backups)
+- Updated .gitignore to exclude /logs/ directory
+- Verified: production build succeeds with standalone output (152MB)
+- Verified: server.js generated correctly in .next/standalone/
+- Pushed all changes to GitHub (commit bc5239f)
+
+Stage Summary:
+- Project is now deployment-ready for Hostinger VPS
+- Two deployment paths supported:
+  1. Vercel + Neon (free) — see DEPLOY.md
+  2. Hostinger VPS (self-hosted) — see HOSTINGER-DEPLOY.md
+- Automated script handles full VPS setup in one command
+- All files pushed to https://github.com/ali452158/keyword-key
