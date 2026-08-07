@@ -168,59 +168,40 @@ async function fetchTikTokViaRapidAPI(
   const clean = username.trim().replace(/^@/, "")
   if (!clean) return null
 
-  // Try multiple known RapidAPI TikTok scraper endpoints.
-  // Each has a free tier; we try them in order until one works.
-  const endpoints = [
-    {
-      host: "tiktok-scraper7.p.rapidapi.com",
-      path: `/api/user/info?user_id=${encodeURIComponent(clean)}`,
-      transform: transformTikTokScraper7,
-    },
-    {
-      host: "tiktok-api15.p.rapidapi.com",
-      path: `/api/user/info?username=${encodeURIComponent(clean)}`,
-      transform: transformTikTokApi15,
-    },
-    {
-      host: "tikapi-disposable.p.rapidapi.com",
-      path: `/api/user/info?username=${encodeURIComponent(clean)}`,
-      transform: transformTikApiDisposable,
-    },
-  ]
+  /**
+   * Verified working provider: tiktok-scraper7
+   * - GET /user/info?unique_id={username} → user + stats
+   * - GET /user/posts?unique_id={username}&count=3 → recent videos
+   *
+   * Response shape (user/info):
+   *   { code: 0, msg: "success", data: { user: {...}, stats: {...} } }
+   *   user fields: uniqueId, nickname, signature, avatarLarger, verified
+   *   stats fields: followerCount, followingCount, heartCount, videoCount
+   *
+   * Response shape (user/posts):
+   *   { code: 0, data: { videos: [{ aweme_id, title, play_count,
+   *     digg_count, comment_count, share_count, cover }] } }
+   */
+  try {
+    const profile = await fetchTikTokScraper7(clean, apiKey)
+    if (profile) return profile
+  } catch (err) {
+    console.warn(
+      "[social-profiles] tiktok-scraper7 failed:",
+      err instanceof Error ? err.message : err
+    )
+  }
 
-  for (const ep of endpoints) {
-    try {
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 12000)
-      const res = await fetch(
-        `https://${ep.host}${ep.path}`,
-        {
-          headers: {
-            "X-RapidAPI-Key": apiKey,
-            "X-RapidAPI-Host": ep.host,
-            Accept: "application/json",
-          },
-          signal: controller.signal,
-        }
-      )
-      clearTimeout(timeout)
-
-      if (!res.ok) {
-        console.warn(
-          `[social-profiles] RapidAPI ${ep.host} returned HTTP ${res.status}`
-        )
-        continue
-      }
-
-      const json = await res.json()
-      const profile = ep.transform(json, clean)
-      if (profile) return profile
-    } catch (err) {
-      console.warn(
-        `[social-profiles] RapidAPI ${ep.host} failed:`,
-        err instanceof Error ? err.message : err
-      )
-    }
+  // Fallback: tiktok-api15 (different response shape — tried only if
+  // the user subscribed to that API instead)
+  try {
+    const profile = await fetchTikTokApi15(clean, apiKey)
+    if (profile) return profile
+  } catch (err) {
+    console.warn(
+      "[social-profiles] tiktok-api15 failed:",
+      err instanceof Error ? err.message : err
+    )
   }
 
   return null
@@ -228,72 +209,134 @@ async function fetchTikTokViaRapidAPI(
 
 type AnyJson = Record<string, unknown>
 
-/** Transform: tiktok-scraper7 response → RealProfile */
-function transformTikTokScraper7(json: AnyJson, username: string): RealProfile | null {
-  // tiktok-scraper7 returns { data: { user: {...}, stats: {...} } }
-  const data = json.data || json
-  const user = data.userInfo?.user || data.user
-  const stats = data.userInfo?.stats || data.stats || data
-  if (!user) return null
+/** Helper: call a RapidAPI endpoint with auth headers. */
+async function callRapidAPI(
+  host: string,
+  path: string,
+  apiKey: string,
+  timeoutMs = 15000
+): Promise<AnyJson | null> {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(`https://${host}${path}`, {
+      headers: {
+        "X-RapidAPI-Key": apiKey,
+        "X-RapidAPI-Host": host,
+        Accept: "application/json",
+      },
+      signal: controller.signal,
+    })
+    clearTimeout(timeout)
 
-  const posts: RealPost[] = Array.isArray(data.itemList)
-    ? data.itemList.slice(0, 3).map((v: AnyJson) => ({
-        title: v.desc || "بدون عنوان",
-        views: Number(v.stats?.playCount || v.playCount) || 0,
-        likes: Number(v.stats?.diggCount || v.diggCount) || 0,
-        comments: Number(v.stats?.commentCount || v.commentCount) || 0,
-        shares: Number(v.stats?.shareCount || v.shareCount) || 0,
-        url: v.id ? `https://www.tiktok.com/@${username}/video/${v.id}` : "",
-      }))
-    : []
+    if (!res.ok) {
+      console.warn(
+        `[social-profiles] RapidAPI ${host} returned HTTP ${res.status}`
+      )
+      return null
+    }
 
-  return {
-    username: user.uniqueId || username,
-    displayName: user.nickname || username,
-    bio: user.signature || "",
-    avatarUrl: user.avatarLarger || user.avatarMedium || "",
-    verified: Boolean(user.verified),
-    followers: Number(stats.followerCount) || 0,
-    following: Number(stats.followingCount) || 0,
-    totalPosts: Number(stats.videoCount) || 0,
-    totalLikes: Number(stats.heartCount) || 0,
-    recentPosts: posts,
-    dataSource: "real",
+    return (await res.json()) as AnyJson
+  } catch (err) {
+    clearTimeout(timeout)
+    console.warn(
+      `[social-profiles] RapidAPI ${host} fetch failed:`,
+      err instanceof Error ? err.message : err
+    )
+    return null
   }
 }
 
-/** Transform: tiktok-api15 response → RealProfile */
-function transformTikTokApi15(json: AnyJson, username: string): RealProfile | null {
-  const user = json.userInfo?.user || json.user
-  const stats = json.userInfo?.stats || json.stats
+/** Provider: tiktok-scraper7.p.rapidapi.com */
+async function fetchTikTokScraper7(
+  username: string,
+  apiKey: string
+): Promise<RealProfile | null> {
+  const host = "tiktok-scraper7.p.rapidapi.com"
+  const encoded = encodeURIComponent(username)
+
+  // 1. Fetch user info
+  const infoJson = await callRapidAPI(
+    host,
+    `/user/info?unique_id=${encoded}`,
+    apiKey
+  )
+  if (!infoJson || infoJson.code !== 0) {
+    console.warn(
+      "[social-profiles] tiktok-scraper7 user/info failed:",
+      infoJson?.msg || "unknown"
+    )
+    return null
+  }
+
+  const data = (infoJson.data || {}) as AnyJson
+  const user = data.user as AnyJson | undefined
+  const stats = data.stats as AnyJson | undefined
   if (!user) return null
 
+  // 2. Fetch recent posts (in parallel-safe manner, but we need user
+  //    info first to know the account exists)
+  let recentPosts: RealPost[] = []
+  const postsJson = await callRapidAPI(
+    host,
+    `/user/posts?unique_id=${encoded}&count=3`,
+    apiKey
+  )
+  if (postsJson && postsJson.code === 0) {
+    const videos = ((postsJson.data as AnyJson)?.videos || []) as AnyJson[]
+    recentPosts = videos.slice(0, 3).map((v) => ({
+      title: String(v.title || v.desc || "بدون عنوان"),
+      views: Number(v.play_count) || 0,
+      likes: Number(v.digg_count) || 0,
+      comments: Number(v.comment_count) || 0,
+      shares: Number(v.share_count) || 0,
+      url: v.video_id
+        ? `https://www.tiktok.com/@${username}/video/${v.video_id}`
+        : "",
+    }))
+  }
+
   return {
-    username: user.uniqueId || username,
-    displayName: user.nickname || username,
-    bio: user.signature || "",
-    avatarUrl: user.avatarLarger || user.avatarMedium || "",
+    username: String(user.uniqueId || username),
+    displayName: String(user.nickname || username),
+    bio: String(user.signature || ""),
+    avatarUrl: String(
+      user.avatarLarger || user.avatarMedium || user.avatarThumb || ""
+    ),
     verified: Boolean(user.verified),
     followers: Number(stats?.followerCount) || 0,
     following: Number(stats?.followingCount) || 0,
     totalPosts: Number(stats?.videoCount) || 0,
     totalLikes: Number(stats?.heartCount) || 0,
-    recentPosts: [],
+    recentPosts,
     dataSource: "real",
   }
 }
 
-/** Transform: tikapi-disposable response → RealProfile */
-function transformTikApiDisposable(json: AnyJson, username: string): RealProfile | null {
-  const user = json.userInfo?.user || json.user
-  const stats = json.userInfo?.stats || json.stats
+/** Provider: tiktok-api15.p.rapidapi.com (fallback if user subscribed to it) */
+async function fetchTikTokApi15(
+  username: string,
+  apiKey: string
+): Promise<RealProfile | null> {
+  const host = "tiktok-api15.p.rapidapi.com"
+  const encoded = encodeURIComponent(username)
+
+  const json = await callRapidAPI(
+    host,
+    `/api/user/info?username=${encoded}`,
+    apiKey
+  )
+  if (!json) return null
+
+  const user = (json.userInfo?.user || json.user) as AnyJson | undefined
+  const stats = (json.userInfo?.stats || json.stats) as AnyJson | undefined
   if (!user) return null
 
   return {
-    username: user.uniqueId || username,
-    displayName: user.nickname || username,
-    bio: user.signature || "",
-    avatarUrl: user.avatarLarger || user.avatarMedium || "",
+    username: String(user.uniqueId || username),
+    displayName: String(user.nickname || username),
+    bio: String(user.signature || ""),
+    avatarUrl: String(user.avatarLarger || user.avatarMedium || ""),
     verified: Boolean(user.verified),
     followers: Number(stats?.followerCount) || 0,
     following: Number(stats?.followingCount) || 0,
